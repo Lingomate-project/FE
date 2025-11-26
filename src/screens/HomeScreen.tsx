@@ -126,7 +126,7 @@ export default function HomeScreen({ navigation }: Props) {
             <Pressable
               style={styles.bottomNavItem}
               onPress={() => {
-                console.log('마이 탭 클릭');
+                navigation.navigate('Profile');
               }}
             >
               <Text style={styles.bottomNavIconInactive}>👤</Text>
