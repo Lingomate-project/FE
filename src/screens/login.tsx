@@ -26,10 +26,10 @@ export default function LoginScreen({ navigation }: Props) {
     console.log('[RN] Google login initiated');
     navigation.navigate('Home'); // 웹의 router.push('/home')
   };
-
+ 
   const handleSignup = () => {
-    // TODO: SignupScreen 만들면 여기서 navigation.navigate('Signup')
-    console.log('[RN] Signup button clicked');
+  console.log('[RN] Signup button clicked');
+  navigation.navigate('Signup');
   };
 
   return (

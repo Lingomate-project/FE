@@ -117,9 +117,10 @@ export default function HomeScreen({ navigation }: Props) {
               style={styles.bottomNavItem}
               onPress={() => {
                 console.log('통계 탭 클릭');
+                navigation.navigate('StudyStats'); 
               }}
             >
-              <Text style={styles.bottomNavIconInactive}>💬</Text>
+              <Text style={styles.bottomNavIconInactive}>📊</Text>
               <Text style={styles.bottomNavLabelInactive}>통계</Text>
             </Pressable>
 

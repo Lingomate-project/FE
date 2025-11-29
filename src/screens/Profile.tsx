@@ -77,6 +77,7 @@ export default function ProfileScreen({ navigation }: Props) {
                 onPress={() => {
                   // TODO: SettingsScreen 만들면 여기서 navigation.navigate('Settings')
                   console.log('[RN] 설정 버튼 클릭');
+                  navigation.navigate('Settings');
                 }}
               >
                 <Text style={styles.settingsButtonText}>설정</Text>
@@ -103,6 +104,7 @@ export default function ProfileScreen({ navigation }: Props) {
             onPress={() => {
               // TODO: StatsScreen 생기면 navigation.navigate('Stats')
               console.log('[RN] 학습 통계 클릭');
+              navigation.navigate('StudyStats');
             }}
           >
             <Text style={styles.menuIcon}>📊</Text>
