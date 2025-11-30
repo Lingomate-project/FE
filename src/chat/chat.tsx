@@ -15,17 +15,17 @@ import {
 } from 'react-native';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { ChevronLeft, Send, Mic } from 'lucide-react-native';
+import { GoogleGenerativeAI } from '@google/generative-ai'; // Gemini SDK 추가
 
-// 텍스트 디코딩 폴리필 (스트리밍 데이터 처리를 위해 필요)
-import 'text-encoding-polyfill';
+
+const GEMINI_API_KEY = "여기에_GOOGLE_API_KEY_를_넣으세요"; 
 
 type Message = {
   id: string;
-  role: 'user' | 'assistant';
+  role: 'user' | 'assistant'; // UI에서는 assistant로 사용
   content: string;
 };
 
-// 네비게이션 타입 정의 (프로젝트 설정에 따라 다를 수 있음)
 type RootStackParamList = {
   Home: undefined;
   Chat: { mode?: string };
@@ -35,22 +35,23 @@ export default function ChatScreen() {
   const navigation = useNavigation<any>();
   const route = useRoute<RouteProp<RootStackParamList, 'Chat'>>();
   
-  // 파라미터가 없으면 기본값 'casual'
   const initialMode = route.params?.mode || 'casual';
   const [mode, setMode] = useState(initialMode);
   
+  // Gemini 인스턴스 초기화
+  const genAI = useRef(new GoogleGenerativeAI(GEMINI_API_KEY)).current;
+
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
       role: 'assistant',
-      content: 'Hello how are you today?',
+      content: 'Hello! How are you today? Let\'s practice English!',
     },
   ]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const flatListRef = useRef<FlatList>(null);
 
-  // 메시지 추가될 때마다 스크롤 내리기
   useEffect(() => {
     if (messages.length > 0) {
       setTimeout(() => {
@@ -66,61 +67,65 @@ export default function ChatScreen() {
   const handleFormSubmit = async () => {
     if (!input.trim() || isLoading) return;
 
+    // 1. 사용자 메시지 UI에 즉시 추가
     const userMessage: Message = {
       id: Date.now().toString(),
       role: 'user',
       content: input,
     };
 
-    setMessages((prev) => [...prev, userMessage]);
+    const newMessages = [...messages, userMessage];
+    setMessages(newMessages);
     setInput('');
     setIsLoading(true);
 
     try {
-      // 주의: 실제 에뮬레이터에서 localhost는 10.0.2.2 (Android) 또는 localhost (iOS)
-      const apiUrl = Platform.OS === 'android' 
-        ? 'http://10.0.2.2:3000/api/chat' 
-        : 'http://localhost:3000/api/chat';
+      // 2. Gemini 모델 설정
+      const model = genAI.getGenerativeModel({ model: "gemini-pro" });
 
-      const response = await fetch(apiUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
+      // 3. 대화 히스토리 변환 (OpenAI 포맷 -> Gemini 포맷)
+      // Gemini는 role이 'user'와 'model'입니다.
+      const history = newMessages.slice(0, -1).map(msg => ({
+        role: msg.role === 'user' ? 'user' : 'model',
+        parts: [{ text: msg.content }],
+      }));
+
+      // 4. 채팅 세션 시작
+      const chat = model.startChat({
+        history: history,
+        generationConfig: {
+          maxOutputTokens: 500,
         },
-        body: JSON.stringify({
-          messages: [...messages, userMessage].map((m) => ({
-            role: m.role,
-            content: m.content,
-          })),
-          mode,
-        }),
       });
 
-      if (!response.ok) throw new Error('Failed to get response');
+      // 5. 현재 모드(Casual/Formal)에 따른 시스템 프롬프트 주입
+    
+      const prompt = `${input} \n\n(Please reply in a ${mode} tone suitable for English learning. Keep it concise.)`;
 
-      
-      // --- 임시 응답 시뮬레이션 (백엔드 연동 전 테스트용) ---
+      // 6. 메시지 전송 및 응답 대기
+      const result = await chat.sendMessage(prompt);
+      const responseText = result.response.text();
 
-      setTimeout(() => {
-        const assistantMessage: Message = {
-          id: (Date.now() + 1).toString(),
-          role: 'assistant',
-          content: `Echo (${mode}): ${userMessage.content}`,
-        };
-        setMessages((prev) => [...prev, assistantMessage]);
-        setIsLoading(false);
-      }, 1000);
-      
-      // ----------------------------------------------------
+      // 7. AI 응답 UI에 추가
+      const assistantMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        role: 'assistant',
+        content: responseText,
+      };
+
+      setMessages((prev) => [...prev, assistantMessage]);
 
     } catch (error) {
-      console.error('Chat error:', error);
-      Alert.alert('Error', 'Failed to send message');
+      console.error('Gemini API Error:', error);
+      Alert.alert('Error', 'Failed to get response from AI.');
+      
+      // 에러 발생 시 사용자에게 재시도 요청을 위해 입력값 복구 등 처리 가능
+    } finally {
       setIsLoading(false);
     }
   };
 
-  // 렌더링 아이템 (FlatList용)
+  // ... (renderItem 및 나머지 코드는 기존과 동일하게 유지)
   const renderItem = ({ item }: { item: Message }) => (
     <View style={[
       styles.messageRow, 
@@ -137,7 +142,6 @@ export default function ChatScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.iconButton}>
           <ChevronLeft color="#2c303c" size={24} />
@@ -150,7 +154,6 @@ export default function ChatScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Messages Area */}
       <FlatList
         ref={flatListRef}
         data={messages}
@@ -160,8 +163,6 @@ export default function ChatScreen() {
         ListHeaderComponent={
           <View style={styles.mascotContainer}>
             <View style={styles.mascotCircle}>
-               {/* 로컬 이미지를 사용할 경우 require('./path/to/image.png') 사용 */}
-               {/* 여기서는 플레이스홀더로 대체 */}
               <Image
                 source={{ uri: 'https://github.com/shadcn.png' }} 
                 style={styles.mascotImage}
@@ -181,7 +182,6 @@ export default function ChatScreen() {
         }
       />
 
-      {/* Input Area */}
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 10 : 0}
@@ -195,6 +195,8 @@ export default function ChatScreen() {
               placeholder="Hello, how are you today?"
               placeholderTextColor="#9ca3af"
               multiline={false}
+              onSubmitEditing={handleFormSubmit} // 엔터 키 누르면 전송
+              returnKeyType="send"
             />
             <TouchableOpacity style={styles.micButton}>
               <Mic color="#9ca3af" size={20} />
@@ -215,6 +217,7 @@ export default function ChatScreen() {
 }
 
 const styles = StyleSheet.create({
+  // 스타일은 원본 코드 그대로 사용 (변경 없음)
   container: {
     flex: 1,
     backgroundColor: '#e8eaf0',
@@ -259,8 +262,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     overflow: 'hidden',
-    elevation: 4, // Android shadow
-    shadowColor: '#000', // iOS shadow
+    elevation: 4,
+    shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
@@ -323,7 +326,7 @@ const styles = StyleSheet.create({
     flex: 1,
     color: '#2c303c',
     fontSize: 14,
-    padding: 0, // Android padding reset
+    padding: 0,
   },
   micButton: {
     padding: 4,

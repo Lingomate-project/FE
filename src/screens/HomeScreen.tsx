@@ -97,6 +97,7 @@ export default function HomeScreen({ navigation }: Props) {
                 style={styles.chatButton}
                 onPress={() => {
                   console.log('Formal chat start');
+                  // 나중에 navigation.navigate('Chat', {mode: 'formal'}) 이런식으로 연결
                 }}
               >
                 <Text style={styles.chatButtonText}>🎓 Formal</Text>
