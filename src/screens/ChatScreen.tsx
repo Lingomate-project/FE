@@ -1,3 +1,5 @@
+// src/screens/ChatScreen.tsx
+
 import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
@@ -15,15 +17,15 @@ import {
 } from 'react-native';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { ChevronLeft, Send, Mic } from 'lucide-react-native';
-import { GoogleGenerativeAI } from '@google/generative-ai'; // Gemini SDK 추가
-//import AsyncStorage from '@react-native-async-storage/async-storage';
+import { GoogleGenerativeAI } from '@google/generative-ai';
+// ✅ 주석 해제
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
-
-const GEMINI_API_KEY = "여기에_GOOGLE_API_KEY_를_넣으세요"; 
+const GEMINI_API_KEY = "여기에_실제_API_KEY_입력"; 
 
 type Message = {
   id: string;
-  role: 'user' | 'assistant'; // UI에서는 assistant로 사용
+  role: 'user' | 'assistant';
   content: string;
 };
 
@@ -39,7 +41,6 @@ export default function ChatScreen() {
   const initialMode = route.params?.mode || 'casual';
   const [mode, setMode] = useState(initialMode);
   
-  // Gemini 인스턴스 초기화
   const genAI = useRef(new GoogleGenerativeAI(GEMINI_API_KEY)).current;
 
   const [messages, setMessages] = useState<Message[]>([
@@ -53,22 +54,29 @@ export default function ChatScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const flatListRef = useRef<FlatList>(null);
 
+  // ✅ [수정] 스크롤 이동 및 데이터 저장 로직 통합
   useEffect(() => {
+    // 1. 메시지 추가 시 스크롤 내리기
     if (messages.length > 0) {
       setTimeout(() => {
         flatListRef.current?.scrollToEnd({ animated: true });
       }, 100);
     }
-   //const saveChatHistory = async () => {
-        //try {
-          //if (messages.length > 0) {
-            // 'last_chat_history'라는 키값으로 메시지 배열을 문자열로 변환해 저장
-            //await AsyncStorage.setItem('last_chat_history', JSON.stringify(messages));
-          //}
-        //} catch (e) {
-          //console.error('Failed to save chat history', e);
-        //}
-}, [messages]);
+
+    // 2. 메시지 변경 시 로컬 저장소에 저장 (ScriptScreen에서 사용)
+    const saveChatHistory = async () => {
+      try {
+        if (messages.length > 0) {
+          await AsyncStorage.setItem('last_chat_history', JSON.stringify(messages));
+        }
+      } catch (e) {
+        console.error('Failed to save chat history', e);
+      }
+    };
+
+    saveChatHistory();
+  }, [messages]);
+
 
   const toggleMode = () => {
     setMode((prev) => (prev === 'casual' ? 'formal' : 'casual'));
@@ -77,7 +85,6 @@ export default function ChatScreen() {
   const handleFormSubmit = async () => {
     if (!input.trim() || isLoading) return;
 
-    // 1. 사용자 메시지 UI에 즉시 추가
     const userMessage: Message = {
       id: Date.now().toString(),
       role: 'user',
@@ -90,17 +97,13 @@ export default function ChatScreen() {
     setIsLoading(true);
 
     try {
-      // 2. Gemini 모델 설정
       const model = genAI.getGenerativeModel({ model: "gemini-pro" });
 
-      // 3. 대화 히스토리 변환 (OpenAI 포맷 -> Gemini 포맷)
-      // Gemini는 role이 'user'와 'model'입니다.
       const history = newMessages.slice(0, -1).map(msg => ({
         role: msg.role === 'user' ? 'user' : 'model',
         parts: [{ text: msg.content }],
       }));
 
-      // 4. 채팅 세션 시작
       const chat = model.startChat({
         history: history,
         generationConfig: {
@@ -108,15 +111,11 @@ export default function ChatScreen() {
         },
       });
 
-      // 5. 현재 모드(Casual/Formal)에 따른 시스템 프롬프트 주입
-    
       const prompt = `${input} \n\n(Please reply in a ${mode} tone suitable for English learning. Keep it concise.)`;
 
-      // 6. 메시지 전송 및 응답 대기
       const result = await chat.sendMessage(prompt);
       const responseText = result.response.text();
 
-      // 7. AI 응답 UI에 추가
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
@@ -128,14 +127,11 @@ export default function ChatScreen() {
     } catch (error) {
       console.error('Gemini API Error:', error);
       Alert.alert('Error', 'Failed to get response from AI.');
-      
-      // 에러 발생 시 사용자에게 재시도 요청을 위해 입력값 복구 등 처리 가능
     } finally {
       setIsLoading(false);
     }
   };
 
-  // ... (renderItem 및 나머지 코드는 기존과 동일하게 유지)
   const renderItem = ({ item }: { item: Message }) => (
     <View style={[
       styles.messageRow, 
@@ -205,7 +201,7 @@ export default function ChatScreen() {
               placeholder="Hello, how are you today?"
               placeholderTextColor="#9ca3af"
               multiline={false}
-              onSubmitEditing={handleFormSubmit} // 엔터 키 누르면 전송
+              onSubmitEditing={handleFormSubmit}
               returnKeyType="send"
             />
             <TouchableOpacity style={styles.micButton}>
@@ -227,7 +223,6 @@ export default function ChatScreen() {
 }
 
 const styles = StyleSheet.create({
-  // 스타일은 원본 코드 그대로 사용 (변경 없음)
   container: {
     flex: 1,
     backgroundColor: '#e8eaf0',
