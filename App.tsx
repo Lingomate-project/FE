@@ -19,6 +19,8 @@ import AccountManageScreen from './src/screens/AccountManageScreen';
 import DeleteAccountScreen from './src/screens/DeleteAccountScreen';
 import DeleteAccountModal from './src/screens/DeleteAccountModal';
 import LogoutModal from './src/screens/LogoutModal';
+import ChatSettingsScreen from './src/screens/ChatSettingsScreen';
+
 
 const Stack = createNativeStackNavigator();
 
