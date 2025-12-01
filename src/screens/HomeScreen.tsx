@@ -85,25 +85,30 @@ export default function HomeScreen({ navigation }: Props) {
             <View style={styles.chatButtonsRow}>
               <Pressable
                 style={styles.chatButton}
-                onPress={() => {
-                  // 나중에 navigation.navigate('Chat', { mode: 'casual' }) 이런 식으로 연결
-                  console.log('Casual chat start');
-                }}
+                onPress={() =>
+                  navigation.navigate('ChatSettings', {
+                    initialMode: 'casual',
+                  })
+                }
               >
                 <Text style={styles.chatButtonText}>😊 Casual</Text>
               </Pressable>
 
               <Pressable
                 style={styles.chatButton}
-                onPress={() => {
-                  console.log('Formal chat start');
-                }}
+                onPress={() =>
+                  navigation.navigate('ChatSettings', {
+                    initialMode: 'formal',
+                  })
+                }
               >
                 <Text style={styles.chatButtonText}>🎓 Formal</Text>
               </Pressable>
             </View>
           </View>
+          {/* ← chatCard 닫힘 */}
         </ScrollView>
+        {/* ← ScrollView 닫힘 */}
 
         {/* Bottom Navigation */}
         <View style={styles.bottomNav}>
@@ -117,7 +122,7 @@ export default function HomeScreen({ navigation }: Props) {
               style={styles.bottomNavItem}
               onPress={() => {
                 console.log('통계 탭 클릭');
-                navigation.navigate('StudyStats'); 
+                navigation.navigate('StudyStats');
               }}
             >
               <Text style={styles.bottomNavIconInactive}>📊</Text>

@@ -1,5 +1,5 @@
 // src/screens/ChatScreen.tsx
-
+import PandaIcon from '../components/PandaIcon';
 import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
@@ -11,17 +11,53 @@ import {
   FlatList,
   KeyboardAvoidingView,
   Platform,
-  Image,
   Alert,
   ActivityIndicator,
 } from 'react-native';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { ChevronLeft, Send, Mic } from 'lucide-react-native';
-import { GoogleGenerativeAI } from '@google/generative-ai';
-// ✅ 주석 해제
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const GEMINI_API_KEY = "여기에_실제_API_KEY_입력"; 
+const GEMINI_API_KEY = '여기에_실제_API_KEY_입력';
+
+const GEMINI_API_URL =
+  `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key=${GEMINI_API_KEY}`;
+
+// history + prompt를 받아서 텍스트 응답만 뽑아주는 함수
+async function callGemini(historyForGemini: any[], prompt: string): Promise<string> {
+  const contents = [
+    ...historyForGemini,
+    {
+      role: 'user',
+      parts: [{ text: prompt }],
+    },
+  ];
+
+  const res = await fetch(GEMINI_API_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      contents,
+      generationConfig: {
+        maxOutputTokens: 500,
+      },
+    }),
+  });
+
+  const data = await res.json();
+
+  if (!res.ok) {
+    console.error('Gemini API error response:', data);
+    throw new Error('Gemini API Error');
+  }
+
+  const text =
+    data.candidates?.[0]?.content?.parts
+      ?.map((p: any) => p.text ?? '')
+      .join('') ?? '';
+
+  return text || 'Sorry, I could not generate a response.';
+}
 
 type Message = {
   id: string;
@@ -37,37 +73,36 @@ type RootStackParamList = {
 export default function ChatScreen() {
   const navigation = useNavigation<any>();
   const route = useRoute<RouteProp<RootStackParamList, 'Chat'>>();
-  
+
   const initialMode = route.params?.mode || 'casual';
   const [mode, setMode] = useState(initialMode);
-  
-  const genAI = useRef(new GoogleGenerativeAI(GEMINI_API_KEY)).current;
 
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
       role: 'assistant',
-      content: 'Hello! How are you today? Let\'s practice English!',
+      content: "Hello! How are you today? Let's practice English!",
     },
   ]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const flatListRef = useRef<FlatList>(null);
 
-  // ✅ [수정] 스크롤 이동 및 데이터 저장 로직 통합
+  // 메시지 변경 시: 스크롤 + AsyncStorage 저장
   useEffect(() => {
-    // 1. 메시지 추가 시 스크롤 내리기
     if (messages.length > 0) {
       setTimeout(() => {
         flatListRef.current?.scrollToEnd({ animated: true });
       }, 100);
     }
 
-    // 2. 메시지 변경 시 로컬 저장소에 저장 (ScriptScreen에서 사용)
     const saveChatHistory = async () => {
       try {
         if (messages.length > 0) {
-          await AsyncStorage.setItem('last_chat_history', JSON.stringify(messages));
+          await AsyncStorage.setItem(
+            'last_chat_history',
+            JSON.stringify(messages),
+          );
         }
       } catch (e) {
         console.error('Failed to save chat history', e);
@@ -77,9 +112,26 @@ export default function ChatScreen() {
     saveChatHistory();
   }, [messages]);
 
-
-  const toggleMode = () => {
-    setMode((prev) => (prev === 'casual' ? 'formal' : 'casual'));
+  // 🔹 모드 변경 버튼 → Alert로 선택
+  const handleModeChange = () => {
+    Alert.alert(
+      '회화 스타일 선택',
+      '사용할 영어 스타일을 선택하세요.',
+      [
+        {
+          text: '😊 Casual',
+          onPress: () => setMode('casual'),
+        },
+        {
+          text: '🎩 Formal',
+          onPress: () => setMode('formal'),
+        },
+        {
+          text: '취소',
+          style: 'cancel',
+        },
+      ],
+    );
   };
 
   const handleFormSubmit = async () => {
@@ -97,24 +149,16 @@ export default function ChatScreen() {
     setIsLoading(true);
 
     try {
-      const model = genAI.getGenerativeModel({ model: "gemini-pro" });
-
-      const history = newMessages.slice(0, -1).map(msg => ({
+      const historyForGemini = newMessages.slice(0, -1).map(msg => ({
         role: msg.role === 'user' ? 'user' : 'model',
         parts: [{ text: msg.content }],
       }));
 
-      const chat = model.startChat({
-        history: history,
-        generationConfig: {
-          maxOutputTokens: 500,
-        },
-      });
+      const prompt = `${input}
 
-      const prompt = `${input} \n\n(Please reply in a ${mode} tone suitable for English learning. Keep it concise.)`;
+(Please reply in a ${mode} tone suitable for English learning. Keep it concise.)`;
 
-      const result = await chat.sendMessage(prompt);
-      const responseText = result.response.text();
+      const responseText = await callGemini(historyForGemini, prompt);
 
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
@@ -122,8 +166,7 @@ export default function ChatScreen() {
         content: responseText,
       };
 
-      setMessages((prev) => [...prev, assistantMessage]);
-
+      setMessages(prev => [...prev, assistantMessage]);
     } catch (error) {
       console.error('Gemini API Error:', error);
       Alert.alert('Error', 'Failed to get response from AI.');
@@ -133,14 +176,16 @@ export default function ChatScreen() {
   };
 
   const renderItem = ({ item }: { item: Message }) => (
-    <View style={[
-      styles.messageRow, 
-      item.role === 'user' ? styles.userRow : styles.assistantRow
-    ]}>
-      <View style={[
-        styles.bubble,
-        item.role === 'user' ? styles.userBubble : styles.assistantBubble
+    <View
+      style={[
+        styles.messageRow,
+        item.role === 'user' ? styles.userRow : styles.assistantRow,
       ]}>
+      <View
+        style={[
+          styles.bubble,
+          item.role === 'user' ? styles.userBubble : styles.assistantBubble,
+        ]}>
         <Text style={styles.messageText}>{item.content}</Text>
       </View>
     </View>
@@ -148,50 +193,52 @@ export default function ChatScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
+      {/* 헤더 */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.iconButton}>
+        <TouchableOpacity
+          onPress={() => navigation.goBack()}
+          style={styles.iconButton}>
           <ChevronLeft color="#2c303c" size={24} />
         </TouchableOpacity>
+
         <Text style={styles.headerTitle}>
           {mode === 'casual' ? '😊 Casual Mode' : '🎩 Formal Mode'}
         </Text>
-        <TouchableOpacity onPress={toggleMode}>
+
+        <TouchableOpacity onPress={handleModeChange}>
           <Text style={styles.modeButtonText}>모드 변경</Text>
         </TouchableOpacity>
       </View>
 
+      {/* 메시지 리스트 */}
       <FlatList
         ref={flatListRef}
         data={messages}
-        keyExtractor={(item) => item.id}
+        keyExtractor={item => item.id}
         renderItem={renderItem}
         contentContainerStyle={styles.listContent}
         ListHeaderComponent={
           <View style={styles.mascotContainer}>
             <View style={styles.mascotCircle}>
-              <Image
-                source={{ uri: 'https://github.com/shadcn.png' }} 
-                style={styles.mascotImage}
-                resizeMode="contain"
-              />
+              <PandaIcon size="medium" />
             </View>
           </View>
         }
         ListFooterComponent={
           isLoading ? (
             <View style={styles.loadingContainer}>
-               <View style={styles.assistantBubble}>
-                 <ActivityIndicator color="#6b7280" size="small" />
-               </View>
+              <View style={styles.assistantBubble}>
+                <ActivityIndicator color="#6b7280" size="small" />
+              </View>
             </View>
           ) : null
         }
       />
 
+      {/* 입력창 */}
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 10 : 0}
-      >
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 10 : 0}>
         <View style={styles.inputContainer}>
           <View style={styles.inputWrapper}>
             <TextInput
@@ -212,8 +259,10 @@ export default function ChatScreen() {
           <TouchableOpacity
             onPress={handleFormSubmit}
             disabled={!input.trim() || isLoading}
-            style={[styles.sendButton, (!input.trim() || isLoading) && styles.disabledButton]}
-          >
+            style={[
+              styles.sendButton,
+              (!input.trim() || isLoading) && styles.disabledButton,
+            ]}>
             <Send color="#fff" size={18} />
           </TouchableOpacity>
         </View>
@@ -272,10 +321,6 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
-  },
-  mascotImage: {
-    width: 100,
-    height: 100,
   },
   messageRow: {
     marginBottom: 10,
