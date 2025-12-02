@@ -1,31 +1,111 @@
 // src/screens/SettingsScreen.tsx
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   Pressable,
+<<<<<<< HEAD
   Image, 
+=======
+  Image,
+  TextInput,
+  Alert,
+>>>>>>> 1545450 (name/photo)
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ChevronLeft } from 'lucide-react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { launchImageLibrary } from 'react-native-image-picker';
+
+const pandaImg = require('../assets/images/panda-mascot.png');
 
 const pandaImg = require('../assets/images/panda-mascot.png');
 
 export default function SettingsScreen({ navigation }: any) {
   const [pushEnabled, setPushEnabled] = useState(false);
+
+  // 🔹 프로필 데이터
+  const [userName, setUserName] = useState<string>('사용자');
+  const [avatarUri, setAvatarUri] = useState<string | null>(null);
+  const [isEditingName, setIsEditingName] = useState<boolean>(false);
+
   const insets = useSafeAreaInsets();
 
-  const togglePush = () => {
-    setPushEnabled(prev => !prev);
+  const togglePush = () => setPushEnabled(prev => !prev);
+
+  // 🔹 앱 시작 & 화면 진입 시 한번 불러오기
+  useEffect(() => {
+    const loadProfile = async () => {
+      try {
+        const storedName = await AsyncStorage.getItem('userName');
+        const storedAvatar = await AsyncStorage.getItem('userAvatarUri');
+
+        if (storedName) setUserName(storedName);
+        if (storedAvatar) setAvatarUri(storedAvatar);
+      } catch (e) {
+        console.log('프로필 불러오기 실패:', e);
+      }
+    };
+
+    loadProfile();
+  }, []);
+
+  // 🔹 이름 저장 함수
+  const saveName = async (newName: string) => {
+    const trimmed = newName.trim();
+    if (!trimmed) {
+      Alert.alert('알림', '이름을 비워둘 수 없어요.');
+      return;
+    }
+
+    try {
+      await AsyncStorage.setItem('userName', trimmed);
+    } catch (e) {
+      console.log('이름 저장 실패:', e);
+    }
+  };
+
+  // 🔹 이미지 선택 함수
+  const pickImage = () => {
+    launchImageLibrary(
+      {
+        mediaType: 'photo',
+        selectionLimit: 1,
+      },
+      (response) => {
+        handleImageResponse(response); // async 함수는 분리해야 함
+      }
+    );
+  };
+
+  // 🔹 실제 async 처리 (콜백에서는 async 쓰면 에러)
+  const handleImageResponse = async (response: any) => {
+    if (response.didCancel) return;
+
+    if (response.errorCode) {
+      Alert.alert('오류', '이미지를 불러오지 못했어요.');
+      return;
+    }
+
+    const asset = response?.assets?.[0];
+    if (asset?.uri) {
+      setAvatarUri(asset.uri);
+
+      try {
+        await AsyncStorage.setItem('userAvatarUri', asset.uri);
+      } catch (e) {
+        console.log('사진 저장 실패:', e);
+      }
+    }
   };
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['left', 'right', 'bottom']}>
       <View style={[styles.root, { paddingTop: insets.top }]}>
 
-        {/* ===== 공통 헤더 ===== */}
+        {/* ===== 헤더 ===== */}
         <View style={styles.header}>
           <Pressable style={styles.backButton} onPress={() => navigation.goBack()}>
             <ChevronLeft size={24} color="#2c303c" />
@@ -36,25 +116,74 @@ export default function SettingsScreen({ navigation }: any) {
           <View style={{ width: 32 }} />
         </View>
 
-        {/* ================= 프로필 영역 ================= */}
+        {/* ===== 프로필 사진 ===== */}
         <View style={styles.profileSection}>
+<<<<<<< HEAD
           <View style={styles.profileAvatarWrapper}>
             <Image source={pandaImg} style={styles.profileAvatar} />
           </View>
           <Text style={styles.profileSubtitle}>사진 변경</Text>
+=======
+          <Pressable style={styles.profileAvatarWrapper} onPress={pickImage}>
+            <Image
+              source={avatarUri ? { uri: avatarUri } : pandaImg}
+              style={styles.profileAvatar}
+            />
+          </Pressable>
+
+          <Text style={styles.profileName}>{userName}</Text>
+
+          <Pressable onPress={pickImage}>
+            <Text style={styles.profileSubtitle}>사진 변경</Text>
+          </Pressable>
+>>>>>>> 1545450 (name/photo)
         </View>
 
-        {/* ================= 이름 영역 ================= */}
+        {/* ===== 이름 ===== */}
         <View style={styles.nameRow}>
+<<<<<<< HEAD
           <Text style={styles.nameLabel}>이름</Text>
           <Pressable /*onPress={() => navigation.navigate('NicknameEdit')}*/>
             <Text style={styles.nameAction}>변경하기</Text>
           </Pressable>
+=======
+          <View style={{ flex: 1 }}>
+            <Text style={styles.nameLabel}>이름</Text>
+
+            {isEditingName ? (
+              <TextInput
+                style={styles.nameInput}
+                value={userName}
+                onChangeText={setUserName}
+                autoFocus
+                returnKeyType="done"
+                placeholder="이름을 입력하세요"
+                placeholderTextColor="#A0A4AF"
+                onBlur={() => {
+                  saveName(userName);
+                  setIsEditingName(false);
+                }}
+                onSubmitEditing={() => {
+                  saveName(userName);
+                  setIsEditingName(false);
+                }}
+              />
+            ) : (
+              <Text style={styles.nameValue}>{userName}</Text>
+            )}
+          </View>
+
+          {!isEditingName && (
+            <Pressable onPress={() => setIsEditingName(true)}>
+              <Text style={styles.nameAction}>변경하기</Text>
+            </Pressable>
+          )}
+>>>>>>> 1545450 (name/photo)
         </View>
 
         <View style={styles.nameDivider} />
 
-        {/* ================= 카드 리스트 ================= */}
+        {/* ===== 카드 섹션 ===== */}
         <View style={styles.cardsContainer}>
           <Pressable
             style={styles.card}
@@ -66,17 +195,9 @@ export default function SettingsScreen({ navigation }: any) {
           <Pressable style={styles.card} onPress={togglePush}>
             <Text style={styles.cardLabel}>푸시 알림</Text>
 
-            <View
-              style={[
-                styles.toggleTrack,
-                pushEnabled && styles.toggleTrackOn,
-              ]}
-            >
+            <View style={[styles.toggleTrack, pushEnabled && styles.toggleTrackOn]}>
               <View
-                style={[
-                  styles.toggleThumb,
-                  pushEnabled && styles.toggleThumbOn,
-                ]}
+                style={[styles.toggleThumb, pushEnabled && styles.toggleThumbOn]}
               />
             </View>
           </Pressable>
@@ -101,17 +222,12 @@ export default function SettingsScreen({ navigation }: any) {
   );
 }
 
-const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: '#E5E7ED',
-  },
-  root: {
-    flex: 1,
-    backgroundColor: '#E5E7ED',
-  },
+/* ============================= 스타일 ============================= */
 
-  /* ===== 헤더 ===== */
+const styles = StyleSheet.create({
+  safeArea: { flex: 1, backgroundColor: '#E5E7ED' },
+  root: { flex: 1, backgroundColor: '#E5E7ED' },
+
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -122,22 +238,19 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#c5c8d4',
   },
-  backButton: {
-    width: 32,
-    justifyContent: 'center',
-  },
-  headerTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#2c303c',
-  },
+  backButton: { width: 32, justifyContent: 'center' },
+  headerTitle: { fontSize: 16, fontWeight: '600', color: '#2c303c' },
 
+<<<<<<< HEAD
   /* ===== 프로필 ===== */
   profileSection: {
     alignItems: 'center',
     marginTop: 40,
     marginBottom: 30,
   },
+=======
+  profileSection: { alignItems: 'center', marginTop: 40, marginBottom: 30 },
+>>>>>>> 1545450 (name/photo)
   profileAvatarWrapper: {
     width: 98,
     height: 98,
@@ -149,6 +262,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 12,
   },
+<<<<<<< HEAD
   profileAvatar: {
     width: 64,
     height: 64,
@@ -158,37 +272,30 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: '#6A6E79',
   },
+=======
+  profileAvatar: { width: 64, height: 64, resizeMode: 'contain' },
+  profileName: { fontSize: 17, fontWeight: '600', color: '#2c303c', marginBottom: 4 },
+  profileSubtitle: { fontSize: 15, color: '#6A6E79', textDecorationLine: 'underline' },
+>>>>>>> 1545450 (name/photo)
 
-  /* ===== 이름 row ===== */
-  nameRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingHorizontal: 24,
-    alignItems: 'center',
-  },
-  nameLabel: {
-    fontSize: 17,
+  nameRow: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 24, alignItems: 'center' },
+  nameLabel: { fontSize: 14, color: '#6A6E79', marginBottom: 2 },
+  nameValue: { fontSize: 17, color: '#2c303c' },
+  nameInput: {
+    marginTop: 4,
+    height: 40,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#C2C5D0',
+    paddingHorizontal: 10,
+    backgroundColor: '#F4F5F9',
+    fontSize: 16,
     color: '#2c303c',
   },
-  nameAction: {
-    fontSize: 17,
-    color: '#6A6E79',
-  },
-  nameDivider: {
-    height: 1,
-    backgroundColor: '#6A6E79',
-    marginHorizontal: 20,
-    marginTop: 8,
-    marginBottom: 20,
-  },
+  nameAction: { fontSize: 17, color: '#6A6E79' },
+  nameDivider: { height: 1, backgroundColor: '#6A6E79', marginHorizontal: 20, marginTop: 8, marginBottom: 20 },
 
-  /* ===== 카드 ===== */
-  cardsContainer: {
-    paddingHorizontal: 20,
-    rowGap: 12,
-    marginTop: 60,
-  },
-
+  cardsContainer: { paddingHorizontal: 20, rowGap: 12, marginTop: 60 },
   card: {
     width: '100%',
     height: 61,
@@ -198,12 +305,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     position: 'relative',
   },
-  cardLabel: {
-    fontSize: 17,
-    color: '#2c303c',
-  },
+  cardLabel: { fontSize: 17, color: '#2c303c' },
 
-  /* ===== 토글 ===== */
   toggleTrack: {
     width: 36,
     height: 20,
@@ -213,9 +316,7 @@ const styles = StyleSheet.create({
     right: 20,
     top: 20,
   },
-  toggleTrackOn: {
-    backgroundColor: '#2c303c',
-  },
+  toggleTrackOn: { backgroundColor: '#2c303c' },
   toggleThumb: {
     width: 16,
     height: 16,
@@ -225,7 +326,5 @@ const styles = StyleSheet.create({
     left: 2,
     top: 2,
   },
-  toggleThumbOn: {
-    left: 18,
-  },
+  toggleThumbOn: { left: 18 },
 });
