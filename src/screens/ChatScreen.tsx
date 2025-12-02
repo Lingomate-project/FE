@@ -18,6 +18,9 @@ import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { ChevronLeft, Send, Mic, Eye, Lightbulb, X } from 'lucide-react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+// import { aiApi } from '../api/Services'; 
+// const TEST_USER_ID = 'test_user_123';
+// === [Gemini API 통신 부분] ===
 // ⚠️ API KEY 설정
 const GEMINI_API_KEY = '여기에_실제_API_KEY_입력';
 
@@ -124,6 +127,7 @@ export default function ChatScreen() {
     };
     saveChatHistory();
   }, [messages]);
+  
 
   // 문법 피드백
   const handleRequestFeedback = async (messageId: string, content: string) => {

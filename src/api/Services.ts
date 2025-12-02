@@ -1,4 +1,4 @@
-import client from './client';
+import client from './Client';
 
 // AI 서버 API 서비스
 export const aiApi = {
