@@ -1,5 +1,20 @@
 import client from './Client';
 
+// === 1. 대화 세션 관리 (백엔드) ===
+export const conversationApi = {
+  /**
+   * 대화 세션 시작 (세션 ID 발급)
+   * POST /api/conversation/start
+   */
+  startSession: () => client.post('/api/conversation/start'),
+
+  /**
+   * 대화 세션 종료 및 스크립트 저장
+   * POST /api/conversation/finish
+   */
+  finishSession: (sessionId: string, script: any[]) =>
+    client.post('/api/conversation/finish', { sessionId, script }),
+};
 // AI 서버 API 서비스
 export const aiApi = {
   /**
