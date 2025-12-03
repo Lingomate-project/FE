@@ -5,88 +5,110 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
-  TextInput,
   Pressable,
-  KeyboardAvoidingView,
-  Platform,
+  Alert,
+  ActivityIndicator,
 } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import PandaIcon from '../components/PandaIcon';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { auth0, authApi } from '../api/auth';
 
 type Props = {
   navigation: any;
 };
 
 export default function LoginScreen({ navigation }: Props) {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const insets = useSafeAreaInsets();
+  const [loading, setLoading] = useState(false);
 
-  const handleGoogleLogin = () => {
-    // TODO: Implement Google OAuth
-    console.log('[RN] Google login initiated');
-    navigation.navigate('Home'); // 웹의 router.push('/home')
-  };
- 
-  const handleSignup = () => {
-  console.log('[RN] Signup button clicked');
-  navigation.navigate('Signup');
+  const handleLogin = async () => {
+    if (loading) return;
+    setLoading(true);
+
+    try {
+      // 1️⃣ Auth0 Universal Login 띄우기 (이메일/비번, 소셜 로그인 포함)
+      const credentials = await auth0.webAuth.authorize({
+        scope: 'openid profile email',
+        // 필요한 경우 additionalParameters에 값 추가 가능
+        // additionalParameters: { prompt: 'login' },
+      });
+
+      console.log('Auth0 로그인 성공:', credentials);
+
+      // 2️⃣ 토큰 로컬 저장 (백엔드 호출이나 재로그인에 사용)
+      if (credentials.accessToken) {
+        await AsyncStorage.setItem('accessToken', credentials.accessToken);
+      }
+      if (credentials.idToken) {
+        await AsyncStorage.setItem('idToken', credentials.idToken);
+      }
+
+      // 3️⃣ 백엔드에 /api/auth/me 호출해서 내부 유저 정보 매핑 (선택)
+      try {
+        const meRes: any = await authApi.getMyAuthInfo();
+        console.log('백엔드 /auth/me:', meRes);
+
+        // 필요하면 여기서 userId, subscription 같은 값도 AsyncStorage에 저장
+        // await AsyncStorage.setItem('userId', meRes.data.userId);
+      } catch (e) {
+        console.log('/api/auth/me 호출 실패(선택):', e);
+      }
+
+      // 4️⃣ 홈 화면으로 이동 (스택 초기화)
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'Home' }],
+      });
+    } catch (e: any) {
+      console.log('Auth0 로그인 실패:', e);
+      Alert.alert('로그인 실패', '로그인 중 오류가 발생했습니다. 다시 시도해 주세요.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <KeyboardAvoidingView
-        style={styles.safeArea}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
-        <View style={styles.container}>
-          <View style={styles.card}>
-            {/* Logo + Title */}
-            <View style={styles.logoSection}>
-              <View style={styles.logoRow}>
-                <Text style={styles.logoText}>LING</Text>
-                <PandaIcon size="small" />
-                <Text style={styles.logoText}>MATE</Text>
-              </View>
-              <Text style={styles.subtitle}>AI와 함께하는 외국어 회화</Text>
-            </View>
-
-            {/* Input Fields */}
-            <View style={styles.inputs}>
-              <TextInput
-                value={email}
-                onChangeText={setEmail}
-                placeholder="이메일"
-                placeholderTextColor="#9ca3af"
-                keyboardType="email-address"
-                autoCapitalize="none"
-                style={styles.input}
-              />
-              <TextInput
-                value={password}
-                onChangeText={setPassword}
-                placeholder="비밀번호"
-                placeholderTextColor="#9ca3af"
-                secureTextEntry
-                style={styles.input}
-              />
-            </View>
-
-            {/* Login Button */}
-            <Pressable style={styles.loginButton} onPress={handleGoogleLogin}>
-              <Text style={styles.loginButtonText}>로그인</Text>
-            </Pressable>
-
-            {/* Signup */}
-            <View style={styles.signupSection}>
-              <Text style={styles.signupText}>계정이 없으신가요?</Text>
-
-              <Pressable style={styles.signupButton} onPress={handleSignup}>
-                <Text style={styles.signupButtonText}>회원가입</Text>
-              </Pressable>
-            </View>
-          </View>
+    <SafeAreaView
+      style={styles.safeArea}
+      edges={['left', 'right', 'bottom']}
+    >
+      <View style={[styles.container, { paddingTop: insets.top }]}>
+        {/* 상단 로고 */}
+        <View style={styles.header}>
+          <PandaIcon size="large" />
+          <Text style={styles.title}>LingoMate</Text>
+          <Text style={styles.subTitle}>영어 회화를 쉽고 자연스럽게</Text>
         </View>
-      </KeyboardAvoidingView>
+
+        {/* 설명 텍스트 */}
+        <View style={styles.body}>
+          <Text style={styles.description}>
+            Auth0로 안전하게 로그인하고{'\n'}
+            나만의 AI 회화 튜터와 연습을 시작해 보세요.
+          </Text>
+        </View>
+
+        {/* 로그인 버튼 */}
+        <View style={styles.footer}>
+          <Pressable
+            style={[styles.loginButton, loading && { opacity: 0.6 }]}
+            onPress={handleLogin}
+            disabled={loading}
+          >
+            {loading ? (
+              <ActivityIndicator color="#ffffff" />
+            ) : (
+              <Text style={styles.loginButtonText}>이메일 / 소셜로 로그인</Text>
+            )}
+          </Pressable>
+
+          <Text style={styles.smallText}>
+            로그인은 Auth0 보안 페이지에서 처리되며,{'\n'}
+            비밀번호는 앱이나 서버에 저장되지 않습니다.
+          </Text>
+        </View>
+      </View>
     </SafeAreaView>
   );
 }
@@ -94,86 +116,112 @@ export default function LoginScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#e8eaf0',
+    backgroundColor: '#E5E7ED',
   },
+
+  footer: {
+  marginBottom: 40,
+},
+
+
   container: {
     flex: 1,
     paddingHorizontal: 24,
+  },
+
+  backArrow: {
+    fontSize: 28,
+    color: '#2C303C',
+    marginBottom: 20,
+  },
+
+  header: {
+    alignItems: 'center',
+    marginBottom: 28,
+  },
+
+  title: {
+    marginTop: 12,
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#2C303C',
+  },
+
+  subTitle: {
+    fontSize: 14,
+    color: '#6B7280',
+    marginTop: 4,
+    textAlign: 'center',
+  },
+
+  body: {
+    flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },
+
+  description: {
+    textAlign: 'center',
+    fontSize: 15,
+    lineHeight: 22,
+    color: '#2C303C',
+    marginBottom: 40,
+  },
+
   card: {
-    width: '100%',
-    maxWidth: 360,
-    backgroundColor: '#d5d8e0',
-    borderRadius: 24,
-    padding: 24,
-    rowGap: 16,
+    backgroundColor: '#D5D8E0',
+    borderRadius: 16,
+    padding: 20,
+    marginHorizontal: 4,
+    marginTop: 12,
   },
-  logoSection: {
-    alignItems: 'center',
-    rowGap: 8,
+
+  label: {
+    color: '#2C303C',
+    fontSize: 15,
     marginBottom: 8,
+    fontWeight: '500',
   },
-  logoRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    columnGap: 4,
-  },
-  logoText: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: '#2c303c',
-  },
-  subtitle: {
-    fontSize: 13,
-    color: '#6b7280',
-  },
-  inputs: {
-    rowGap: 8,
-    marginTop: 4,
-  },
+
   input: {
     height: 48,
+    backgroundColor: '#FFFFFF',
     borderRadius: 12,
-    backgroundColor: '#ffffff',
     paddingHorizontal: 14,
-    fontSize: 14,
-    color: '#2c303c',
+    fontSize: 15,
+    color: '#2C303C',
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#C5C8D4',
   },
+
   loginButton: {
-    marginTop: 8,
-    height: 48,
+    backgroundColor: '#2C303C',
+    height: 52,
     borderRadius: 12,
-    backgroundColor: '#2c303c',
     alignItems: 'center',
     justifyContent: 'center',
+    marginTop: 12,
   },
+
   loginButtonText: {
-    color: '#ffffff',
-    fontWeight: '500',
-    fontSize: 15,
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
   },
-  signupSection: {
-    marginTop: 8,
-    alignItems: 'center',
+
+  footerText: {
+    fontSize: 12,
+    color: '#6B7280',
+    textAlign: 'center',
+    marginTop: 12,
+    lineHeight: 18,
   },
-  signupText: {
-    fontSize: 13,
-    color: '#6b7280',
-    marginBottom: 6,
-  },
-  signupButton: {
-    width: '100%',
-    height: 48,
-    borderRadius: 12,
-    backgroundColor: '#3d424f',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  signupButtonText: {
-    color: '#ffffff',
-    fontWeight: '500',
-    fontSize: 15,
-  },
+  smallText: {
+  marginTop: 12,
+  fontSize: 12,
+  color: '#6B7280',
+  textAlign: 'center',
+  lineHeight: 18,
+},
 });

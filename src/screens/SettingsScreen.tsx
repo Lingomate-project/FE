@@ -288,4 +288,3 @@ const styles = StyleSheet.create({
   },
   toggleThumbOn: { left: 18 },
 });
-
