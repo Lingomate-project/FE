@@ -410,7 +410,7 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        columnGap: 12, // 안 되면 대신 marginRight / marginLeft 써도 됨
+        columnGap: 12,
     },
     headerTitle: {
         fontSize: 16,

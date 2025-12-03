@@ -8,24 +8,52 @@ import {
   TextInput,
   Pressable,
   TouchableOpacity,
+  Alert,
+  Linking,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ChevronLeft } from 'lucide-react-native';
 
-export default function ChangePasswordScreen({ navigation }: any) {
-  const [currentPw, setCurrentPw] = useState('');
-  const [newPw, setNewPw] = useState('');
-  const [newPwCheck, setNewPwCheck] = useState('');
+// ⚠️ 실제 Auth0 도메인으로 교체해야 함
+const AUTH0_RESET_URL = 'https://dev-rc5gsyjk5pfptk72.us.auth0.com/u/reset-password';
 
+export default function ChangePasswordScreen({ navigation }: any) {
   const insets = useSafeAreaInsets();
+  const [email, setEmail] = useState('');
+
+  const handleOpenResetPage = async () => {
+    try {
+      const url =
+        email.trim().length > 0
+          ? `${AUTH0_RESET_URL}?email=${encodeURIComponent(email.trim())}`
+          : AUTH0_RESET_URL;
+
+      const canOpen = await Linking.canOpenURL(url);
+      if (!canOpen) {
+        Alert.alert(
+          '오류',
+          '비밀번호 재설정 페이지를 열 수 없습니다. 잠시 후 다시 시도해 주세요.',
+        );
+        return;
+      }
+
+      await Linking.openURL(url);
+    } catch (e) {
+      console.log('open reset page error:', e);
+      Alert.alert(
+        '오류',
+        '비밀번호 재설정 화면으로 이동하는 중 문제가 발생했습니다.',
+      );
+    }
+  };
 
   return (
     <SafeAreaView
       style={styles.safeArea}
-      edges={['left', 'right', 'bottom']} // 상단은 insets.top으로 직접 처리
+      edges={['left', 'right', 'bottom']}
     >
       <View style={[styles.root, { paddingTop: insets.top }]}>
-        {/* === ChatScreen과 동일한 형태의 헤더 === */}
+        {/* === 헤더 === */}
         <View style={styles.header}>
           <TouchableOpacity
             onPress={() => navigation.goBack()}
@@ -37,57 +65,35 @@ export default function ChangePasswordScreen({ navigation }: any) {
           <Text style={styles.headerTitle}>비밀번호 변경</Text>
 
           {/* 오른쪽 정렬용 더미 뷰 */}
-          <View style={{ width: 24 }} />
+          <View style={{ width: 32 }} />
         </View>
 
-        {/* ===== 본문 영역 ===== */}
+        {/* === 본문 === */}
         <View style={styles.content}>
-          {/* 입력창 */}
+
           <View style={styles.formArea}>
-            <Text style={styles.inputLabel}>현재 비밀번호</Text>
+            <Text style={styles.inputLabel}>이메일 (선택)</Text>
             <TextInput
               style={styles.inputBox}
-              secureTextEntry
-              placeholder="현재 비밀번호"
+              placeholder="이메일"
               placeholderTextColor="#9ca3af"
-              value={currentPw}
-              onChangeText={setCurrentPw}
-            />
-
-            <Text style={styles.inputLabel}>새 비밀번호</Text>
-            <TextInput
-              style={styles.inputBox}
-              secureTextEntry
-              placeholder="새 비밀번호"
-              placeholderTextColor="#9ca3af"
-              value={newPw}
-              onChangeText={setNewPw}
-            />
-
-            <Text style={styles.inputLabel}>새 비밀번호 확인</Text>
-            <TextInput
-              style={styles.inputBox}
-              secureTextEntry
-              placeholder="새 비밀번호 확인"
-              placeholderTextColor="#9ca3af"
-              value={newPwCheck}
-              onChangeText={setNewPwCheck}
+              value={email}
+              onChangeText={setEmail}
+              autoCapitalize="none"
+              keyboardType="email-address"
             />
           </View>
 
-          {/* 버튼 */}
-          <Pressable
-            style={styles.submitButton}
-            onPress={() => navigation.navigate('Settings')}
-          >
-            <Text style={styles.submitButtonText}>비밀번호 변경</Text>
+          <Pressable style={styles.submitButton} onPress={handleOpenResetPage}>
+            <Text style={styles.submitButtonText}>
+              비밀번호 재설정 페이지로 이동
+            </Text>
           </Pressable>
         </View>
       </View>
     </SafeAreaView>
   );
 }
-
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
@@ -122,6 +128,13 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 24,
     paddingTop: 24,
+  },
+
+  description: {
+    fontSize: 14,
+    color: '#4b5563',
+    lineHeight: 20,
+    marginBottom: 24,
   },
 
   formArea: {

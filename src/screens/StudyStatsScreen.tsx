@@ -1,22 +1,115 @@
 // src/screens/StudyStatsScreen.tsx
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   Pressable,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import PandaIcon from '../components/PandaIcon';
+import client from '../api/Client';
 
 type Props = {
   navigation: any;
 };
 
+type StatsData = {
+  totalSessions: number;
+  totalMinutes: number;
+  avgScore: number;
+  bestScore: number;
+  streak: number;
+  newWordsLearned: number;
+};
+
 export default function StudyStatsScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
+
+  const [stats, setStats] = useState<StatsData | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  // 🔥 1. 백엔드에서 학습 통계 가져오기
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const res = await client.get('/api/stats');
+        // 응답: { success: true, data: {...} }
+        const data = res.data?.data;
+
+        setStats({
+          totalSessions: data.totalSessions ?? 0,
+          totalMinutes: data.totalMinutes ?? 0,
+          avgScore: data.avgScore ?? 0,
+          bestScore: data.bestScore ?? 0,
+          streak: data.streak ?? 0,
+          newWordsLearned: data.newWordsLearned ?? 0,
+        });
+      } catch (e) {
+        console.log('[StudyStats] /api/stats 호출 실패:', e);
+        // 실패해도 화면이 완전히 죽지 않도록 기본값 세팅
+        setStats({
+          totalSessions: 0,
+          totalMinutes: 0,
+          avgScore: 0,
+          bestScore: 0,
+          streak: 0,
+          newWordsLearned: 0,
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchStats();
+  }, []);
+
+  // 🔢 2. 총 학습 시간 표기: 분 → "xxh" 형식
+  const getTotalHoursLabel = () => {
+    if (!stats) return '-';
+    const hours = Math.floor(stats.totalMinutes / 60);
+    const minutes = stats.totalMinutes % 60;
+
+    if (hours > 0) {
+      // 예: 21h, 21h 10m 이런 식으로
+      return minutes > 0 ? `${hours}h ${minutes}m` : `${hours}h`;
+    }
+    return `${minutes}m`;
+  };
+
+  // 🐼 3. 진행도 팬더 개수 계산: "3회마다 팬더 1개"
+  //     예: totalSessions = 7 → Math.floor(7/3) = 2마리
+  const getPandaCount = () => {
+    if (!stats) return 0;
+    const count = Math.floor(stats.totalSessions / 3);
+    // 현재 칸이 12개(3행×4열)이므로 최대 12로 제한
+    return Math.min(count, 12);
+  };
+
+  const pandaCount = getPandaCount();
+
+  // 로딩 상태 처리
+  if (loading || !stats) {
+    return (
+      <SafeAreaView
+        style={styles.safeArea}
+        edges={['left', 'right', 'bottom']}
+      >
+        <View
+          style={[
+            styles.root,
+            { paddingTop: insets.top, justifyContent: 'center', alignItems: 'center' },
+          ]}
+        >
+          <ActivityIndicator size="large" color="#2c303c" />
+          <Text style={{ marginTop: 12, color: '#4b4b4b' }}>학습 통계를 불러오는 중...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView
@@ -44,35 +137,35 @@ export default function StudyStatsScreen({ navigation }: Props) {
           contentContainerStyle={styles.content}
           showsVerticalScrollIndicator={false}
         >
-          {/* ===== 요약 카드 6개 ===== */}
+          {/* ===== 요약 카드 6개 (백엔드 데이터 기반) ===== */}
           <View style={styles.summaryGrid}>
             <View style={styles.summaryCard}>
-              <Text style={styles.summaryValue}>127</Text>
+              <Text style={styles.summaryValue}>{stats.totalSessions}</Text>
               <Text style={styles.summaryLabel}>총 대화 횟수</Text>
             </View>
 
             <View style={styles.summaryCard}>
-              <Text style={styles.summaryValue}>21h</Text>
+              <Text style={styles.summaryValue}>{getTotalHoursLabel()}</Text>
               <Text style={styles.summaryLabel}>총 학습 시간</Text>
             </View>
 
             <View style={styles.summaryCard}>
-              <Text style={styles.summaryValue}>83</Text>
+              <Text style={styles.summaryValue}>{stats.avgScore}</Text>
               <Text style={styles.summaryLabel}>평균 점수</Text>
             </View>
 
             <View style={styles.summaryCard}>
-              <Text style={styles.summaryValue}>15</Text>
+              <Text style={styles.summaryValue}>{stats.streak}</Text>
               <Text style={styles.summaryLabel}>연속 학습일</Text>
             </View>
 
             <View style={styles.summaryCard}>
-              <Text style={styles.summaryValue}>97</Text>
+              <Text style={styles.summaryValue}>{stats.bestScore}</Text>
               <Text style={styles.summaryLabel}>최고 점수</Text>
             </View>
 
             <View style={styles.summaryCard}>
-              <Text style={styles.summaryValue}>53</Text>
+              <Text style={styles.summaryValue}>{stats.newWordsLearned}</Text>
               <Text style={styles.summaryLabel}>학습한 단어 및 문장</Text>
             </View>
           </View>
@@ -81,29 +174,33 @@ export default function StudyStatsScreen({ navigation }: Props) {
           <View style={styles.progressSection}>
             <Text style={styles.progressTitle}>진행도</Text>
             <Text style={styles.progressHint}>
-              하루 3회 이상 대화시 10포인트
+              하루 3회 이상 대화 시 10포인트 (3회마다 팬더 1개)
             </Text>
 
-            {/* 1행 뱃지 (앞 3개는 PandaIcon) */}
+            {/* 1행 뱃지 (4칸) */}
             <View style={styles.badgeRow}>
               {[0, 1, 2, 3].map((idx) => (
                 <View key={idx} style={styles.badgeBox}>
-                  {idx < 3 && <PandaIcon size="medium" />}
+                  {idx < pandaCount && <PandaIcon size="medium" />}
                 </View>
               ))}
             </View>
 
             {/* 2행 뱃지 */}
             <View style={styles.badgeRow}>
-              {[0, 1, 2, 3].map((idx) => (
-                <View key={idx} style={styles.badgeBox} />
+              {[4, 5, 6, 7].map((idx) => (
+                <View key={idx} style={styles.badgeBox}>
+                  {idx < pandaCount && <PandaIcon size="medium" />}
+                </View>
               ))}
             </View>
 
             {/* 3행 뱃지 */}
             <View style={styles.badgeRow}>
-              {[0, 1, 2, 3].map((idx) => (
-                <View key={idx} style={styles.badgeBox} />
+              {[8, 9, 10, 11].map((idx) => (
+                <View key={idx} style={styles.badgeBox}>
+                  {idx < pandaCount && <PandaIcon size="medium" />}
+                </View>
               ))}
             </View>
           </View>
