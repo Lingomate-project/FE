@@ -34,8 +34,9 @@
                 <category android:name="android.intent.category.BROWSABLE" />
 
                 <data
-                    android:scheme="com.lingomateapp"
-                    android:host="callback" />
+                    android:scheme="com.lingomateapp.auth0"
+                    android:host="dev-rc5gsyjk5pfptk72.us.auth0.com"
+                    android:path="/android/com.lingomateapp/callback" />
             </intent-filter>
 
         </activity>

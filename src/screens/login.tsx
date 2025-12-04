@@ -12,7 +12,9 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import PandaIcon from '../components/PandaIcon';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { auth0, authApi } from '../api/auth';
+
+// 🔥 auth.ts에서 login() / logout() 함수 가져오기
+import { login, authApi } from '../api/auth';
 
 type Props = {
   navigation: any;
@@ -27,16 +29,12 @@ export default function LoginScreen({ navigation }: Props) {
     setLoading(true);
 
     try {
-      // 1️⃣ Auth0 Universal Login 띄우기 (이메일/비번, 소셜 로그인 포함)
-      const credentials = await auth0.webAuth.authorize({
-        scope: 'openid profile email',
-        // 필요한 경우 additionalParameters에 값 추가 가능
-        // additionalParameters: { prompt: 'login' },
-      });
+      // 🔑 Auth0 Universal Login 호출
+      const credentials = await login();
 
       console.log('Auth0 로그인 성공:', credentials);
 
-      // 2️⃣ 토큰 로컬 저장 (백엔드 호출이나 재로그인에 사용)
+      // 🔑 토큰 저장
       if (credentials.accessToken) {
         await AsyncStorage.setItem('accessToken', credentials.accessToken);
       }
@@ -44,25 +42,22 @@ export default function LoginScreen({ navigation }: Props) {
         await AsyncStorage.setItem('idToken', credentials.idToken);
       }
 
-      // 3️⃣ 백엔드에 /api/auth/me 호출해서 내부 유저 정보 매핑 (선택)
+      // 🔥 백엔드 /auth/me 호출 (선택)
       try {
         const meRes: any = await authApi.getMyAuthInfo();
         console.log('백엔드 /auth/me:', meRes);
-
-        // 필요하면 여기서 userId, subscription 같은 값도 AsyncStorage에 저장
-        // await AsyncStorage.setItem('userId', meRes.data.userId);
       } catch (e) {
-        console.log('/api/auth/me 호출 실패(선택):', e);
+        console.log('/api/auth/me 호출 실패:', e);
       }
 
-      // 4️⃣ 홈 화면으로 이동 (스택 초기화)
+      // 홈 화면으로 이동
       navigation.reset({
         index: 0,
         routes: [{ name: 'Home' }],
       });
-    } catch (e: any) {
+    } catch (e) {
       console.log('Auth0 로그인 실패:', e);
-      Alert.alert('로그인 실패', '로그인 중 오류가 발생했습니다. 다시 시도해 주세요.');
+      Alert.alert('로그인 실패', '로그인 중 오류가 발생했습니다. 다시 시도해주세요.');
     } finally {
       setLoading(false);
     }
