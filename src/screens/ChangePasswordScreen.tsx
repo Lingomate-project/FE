@@ -5,45 +5,43 @@ import {
   View,
   Text,
   StyleSheet,
-  TextInput,
   Pressable,
   TouchableOpacity,
   Alert,
-  Linking,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ChevronLeft } from 'lucide-react-native';
+import { auth0, REDIRECT_URI } from '../api/auth';
 
-// ⚠️ 실제 Auth0 도메인으로 교체해야 함
-const AUTH0_RESET_URL = 'https://dev-rc5gsyjk5pfptk72.us.auth0.com/u/reset-password';
+type Props = {
+  navigation: any;
+};
 
-export default function ChangePasswordScreen({ navigation }: any) {
+export default function ChangePasswordScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
-  const [email, setEmail] = useState('');
+  const [loading, setLoading] = useState(false);
 
   const handleOpenResetPage = async () => {
+    if (loading) return;
+    setLoading(true);
+
     try {
-      const url =
-        email.trim().length > 0
-          ? `${AUTH0_RESET_URL}?email=${encodeURIComponent(email.trim())}`
-          : AUTH0_RESET_URL;
+      // 🔐 Auth0 Universal Login 바로 열기
+      await auth0.webAuth.authorize({
+        scope: 'openid profile email',
+        redirectUrl: REDIRECT_URI,
+      });
 
-      const canOpen = await Linking.canOpenURL(url);
-      if (!canOpen) {
-        Alert.alert(
-          '오류',
-          '비밀번호 재설정 페이지를 열 수 없습니다. 잠시 후 다시 시도해 주세요.',
-        );
-        return;
-      }
-
-      await Linking.openURL(url);
+      // 여기까지 오면 로그인까지 완료된 상태
+      // (비밀번호만 바꾸려는 경우엔 크게 의미 없음. cancel도 가능)
     } catch (e) {
-      console.log('open reset page error:', e);
+      console.log('open auth0 login error:', e);
       Alert.alert(
         '오류',
         '비밀번호 재설정 화면으로 이동하는 중 문제가 발생했습니다.',
       );
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -62,31 +60,29 @@ export default function ChangePasswordScreen({ navigation }: any) {
             <ChevronLeft color="#2c303c" size={24} />
           </TouchableOpacity>
 
-          <Text style={styles.headerTitle}>비밀번호 변경</Text>
+          <Text style={styles.headerTitle}>비밀번호 변경 및 찾기</Text>
 
-          {/* 오른쪽 정렬용 더미 뷰 */}
+          {/* 오른쪽 정렬용 빈 공간 */}
           <View style={{ width: 32 }} />
         </View>
 
         {/* === 본문 === */}
         <View style={styles.content}>
+          <Text style={styles.description}>
+            Auth0 로그인 화면에서{'\n'}
+            <Text style={{ fontWeight: '600' }}>"Forgot your password?"</Text>를 눌러주세요.
+          </Text>
 
-          <View style={styles.formArea}>
-            <Text style={styles.inputLabel}>이메일 (선택)</Text>
-            <TextInput
-              style={styles.inputBox}
-              placeholder="이메일"
-              placeholderTextColor="#9ca3af"
-              value={email}
-              onChangeText={setEmail}
-              autoCapitalize="none"
-              keyboardType="email-address"
-            />
-          </View>
-
-          <Pressable style={styles.submitButton} onPress={handleOpenResetPage}>
+          <Pressable
+            style={[
+              styles.submitButton,
+              loading && { opacity: 0.6 },
+            ]}
+            onPress={handleOpenResetPage}
+            disabled={loading}
+          >
             <Text style={styles.submitButtonText}>
-              비밀번호 재설정 페이지로 이동
+              비밀번호 변경 및 찾기
             </Text>
           </Pressable>
         </View>
@@ -94,6 +90,7 @@ export default function ChangePasswordScreen({ navigation }: any) {
     </SafeAreaView>
   );
 }
+
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,

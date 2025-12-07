@@ -170,7 +170,7 @@ export default function SettingsScreen({ navigation }: any) {
             style={styles.card}
             onPress={() => navigation.navigate('ChangePassword')}
           >
-            <Text style={styles.cardLabel}>비밀번호 변경</Text>
+            <Text style={styles.cardLabel}>비밀번호 변경 및 찾기</Text>
           </Pressable>
 
           <Pressable style={styles.card} onPress={togglePush}>

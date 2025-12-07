@@ -32,13 +32,16 @@ export default function StudyStatsScreen({ navigation }: Props) {
   const [stats, setStats] = useState<StatsData | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // 🔥 1. 백엔드에서 학습 통계 가져오기
+  // 🔥 1. 백엔드에서 학습 통계 가져오기 (unmount 안전 처리 포함)
   useEffect(() => {
+    let isMounted = true;
+
     const fetchStats = async () => {
       try {
         const res = await client.get('/api/stats');
-        // 응답: { success: true, data: {...} }
-        const data = res.data?.data;
+        const data = res.data?.data || {};
+
+        if (!isMounted) return;
 
         setStats({
           totalSessions: data.totalSessions ?? 0,
@@ -50,6 +53,9 @@ export default function StudyStatsScreen({ navigation }: Props) {
         });
       } catch (e) {
         console.log('[StudyStats] /api/stats 호출 실패:', e);
+
+        if (!isMounted) return;
+
         // 실패해도 화면이 완전히 죽지 않도록 기본값 세팅
         setStats({
           totalSessions: 0,
@@ -60,28 +66,41 @@ export default function StudyStatsScreen({ navigation }: Props) {
           newWordsLearned: 0,
         });
       } finally {
-        setLoading(false);
+        if (isMounted) {
+          setLoading(false);
+        }
       }
     };
 
     fetchStats();
+
+    // 언마운트 시 플래그 내려서 setState 방지
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
-  // 🔢 2. 총 학습 시간 표기: 분 → "xxh" 형식
+  // 🔢 2. 총 학습 시간 표기: 분 → "xxh xxm" 형식
   const getTotalHoursLabel = () => {
     if (!stats) return '-';
     const hours = Math.floor(stats.totalMinutes / 60);
     const minutes = stats.totalMinutes % 60;
 
     if (hours > 0) {
-      // 예: 21h, 21h 10m 이런 식으로
       return minutes > 0 ? `${hours}h ${minutes}m` : `${hours}h`;
     }
     return `${minutes}m`;
   };
 
-  // 🐼 3. 진행도 팬더 개수 계산: "3회마다 팬더 1개"
-  //     예: totalSessions = 7 → Math.floor(7/3) = 2마리
+  // 🔢 3. 점수 포맷: 소수점 1자리까지만
+  const formatScore = (value: number) => {
+    if (value === null || value === undefined || Number.isNaN(value)) {
+      return '-';
+    }
+    return Math.round(value).toString();
+  };
+
+  // 🐼 4. 진행도 팬더 개수 계산: "3회마다 팬더 1개"
   const getPandaCount = () => {
     if (!stats) return 0;
     const count = Math.floor(stats.totalSessions / 3);
@@ -101,11 +120,17 @@ export default function StudyStatsScreen({ navigation }: Props) {
         <View
           style={[
             styles.root,
-            { paddingTop: insets.top, justifyContent: 'center', alignItems: 'center' },
+            {
+              paddingTop: insets.top,
+              justifyContent: 'center',
+              alignItems: 'center',
+            },
           ]}
         >
           <ActivityIndicator size="large" color="#2c303c" />
-          <Text style={{ marginTop: 12, color: '#4b4b4b' }}>학습 통계를 불러오는 중...</Text>
+          <Text style={{ marginTop: 12, color: '#4b4b4b' }}>
+            학습 통계를 불러오는 중...
+          </Text>
         </View>
       </SafeAreaView>
     );
@@ -114,10 +139,10 @@ export default function StudyStatsScreen({ navigation }: Props) {
   return (
     <SafeAreaView
       style={styles.safeArea}
-      edges={['left', 'right', 'bottom']} // 상단은 insets.top으로 직접 처리
+      edges={['left', 'right', 'bottom']}
     >
       <View style={[styles.root, { paddingTop: insets.top }]}>
-        {/* ===== 상단 헤더 (공통 스타일) ===== */}
+        {/* ===== 상단 헤더 ===== */}
         <View style={styles.header}>
           <Pressable
             style={styles.backButton}
@@ -137,7 +162,7 @@ export default function StudyStatsScreen({ navigation }: Props) {
           contentContainerStyle={styles.content}
           showsVerticalScrollIndicator={false}
         >
-          {/* ===== 요약 카드 6개 (백엔드 데이터 기반) ===== */}
+          {/* ===== 요약 카드 6개 ===== */}
           <View style={styles.summaryGrid}>
             <View style={styles.summaryCard}>
               <Text style={styles.summaryValue}>{stats.totalSessions}</Text>
@@ -150,7 +175,9 @@ export default function StudyStatsScreen({ navigation }: Props) {
             </View>
 
             <View style={styles.summaryCard}>
-              <Text style={styles.summaryValue}>{stats.avgScore}</Text>
+              <Text style={styles.summaryValue}>
+                {formatScore(stats.avgScore)}
+              </Text>
               <Text style={styles.summaryLabel}>평균 점수</Text>
             </View>
 
@@ -160,7 +187,9 @@ export default function StudyStatsScreen({ navigation }: Props) {
             </View>
 
             <View style={styles.summaryCard}>
-              <Text style={styles.summaryValue}>{stats.bestScore}</Text>
+              <Text style={styles.summaryValue}>
+                {formatScore(stats.bestScore)}
+              </Text>
               <Text style={styles.summaryLabel}>최고 점수</Text>
             </View>
 

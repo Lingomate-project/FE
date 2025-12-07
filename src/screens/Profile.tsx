@@ -1,4 +1,6 @@
-import React from 'react';
+// src/screens/ProfileScreen.tsx
+
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -9,25 +11,118 @@ import {
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ChevronLeft } from 'lucide-react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import PandaIcon from '../components/PandaIcon';
+import client from '../api/Client';
 
 type Props = {
   navigation: any;
 };
 
-// src/screens → src/assets
+type StatsData = {
+  totalSessions: number;
+  totalMinutes: number;
+  avgScore: number;
+  bestScore: number;
+  streak: number;
+  newWordsLearned: number;
+};
+
 const pandaImg = require('../assets/images/panda-mascot.png');
 
 export default function ProfileScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
 
+  const [userName, setUserName] = useState<string>('사용자');
+  const [avatarUri, setAvatarUri] = useState<string | null>(null);
+
+  const [stats, setStats] = useState<StatsData | null>(null);
+  const [loadingStats, setLoadingStats] = useState(true);
+
+  // ✅ 1. 프로필: 화면에 들어올 때마다 다시 로드
+  useEffect(() => {
+    const loadProfile = async () => {
+      try {
+        const storedName = await AsyncStorage.getItem('userName');
+        const storedAvatar = await AsyncStorage.getItem('userAvatarUri');
+
+        if (storedName) setUserName(storedName);
+        if (storedAvatar) setAvatarUri(storedAvatar);
+      } catch (e) {
+        console.log('[Profile] 프로필 불러오기 실패:', e);
+      }
+    };
+
+    // 처음 마운트될 때 한 번
+    loadProfile();
+
+    // 🔥 화면이 다시 포커스될 때마다 또 한 번
+    const unsubscribe = navigation.addListener('focus', () => {
+      loadProfile();
+    });
+
+    return unsubscribe;
+  }, [navigation]);
+
+  // ✅ 2. 통계는 그대로
+  useEffect(() => {
+    let isMounted = true;
+
+    const fetchStats = async () => {
+      try {
+        const res = await client.get('/api/stats');
+        const data = res.data?.data || {};
+
+        if (!isMounted) return;
+
+        setStats({
+          totalSessions: data.totalSessions ?? 0,
+          totalMinutes: data.totalMinutes ?? 0,
+          avgScore: data.avgScore ?? 0,
+          bestScore: data.bestScore ?? 0,
+          streak: data.streak ?? 0,
+          newWordsLearned: data.newWordsLearned ?? 0,
+        });
+      } catch (e) {
+        console.log('[Profile] /api/stats 호출 실패:', e);
+
+        if (!isMounted) return;
+
+        setStats({
+          totalSessions: 0,
+          totalMinutes: 0,
+          avgScore: 0,
+          bestScore: 0,
+          streak: 0,
+          newWordsLearned: 0,
+        });
+      } finally {
+        if (isMounted) setLoadingStats(false);
+      }
+    };
+
+    fetchStats();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const getTotalPoints = () => {
+    if (!stats) return 0;
+    const pandaCount = Math.floor(stats.totalSessions / 3);
+    return pandaCount * 10;
+  };
+
+  const streakValue = stats ? stats.streak : 0;
+  const pointsValue = stats ? getTotalPoints() : 0;
+
   return (
     <SafeAreaView
       style={styles.safeArea}
-      edges={['left', 'right', 'bottom']} // top은 insets.top으로 직접 처리
+      edges={['left', 'right', 'bottom']}
     >
       <View style={[styles.root, { paddingTop: insets.top }]}>
-        {/* Header */}
+        {/* === 헤더 === */}
         <View style={styles.header}>
           <View style={styles.headerRow}>
             <Pressable
@@ -51,9 +146,8 @@ export default function ProfileScreen({ navigation }: Props) {
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
-          {/* Profile Card */}
+          {/* 프로필 카드 */}
           <View style={styles.card}>
-            {/* "프로필" 타이틀 + 아이콘 */}
             <View style={styles.cardHeaderRow}>
               <View style={styles.cardHeaderTitleRow}>
                 <Text style={styles.cardHeaderIcon}>👤</Text>
@@ -61,14 +155,16 @@ export default function ProfileScreen({ navigation }: Props) {
               </View>
             </View>
 
-            {/* 실제 프로필 내용 */}
             <View style={styles.profileRow}>
               <View style={styles.profileAvatarWrapper}>
-                <Image source={pandaImg} style={styles.profileAvatar} />
+                <Image
+                  source={avatarUri ? { uri: avatarUri } : pandaImg}
+                  style={styles.profileAvatar}
+                />
               </View>
 
               <View style={styles.profileInfo}>
-                <Text style={styles.profileName}>김말본</Text>
+                <Text style={styles.profileName}>{userName}</Text>
                 <Text style={styles.profileEmail}>kmm@gmail.com</Text>
                 <View style={styles.profilePlanRow}>
                   <View style={styles.planDot} />
@@ -78,36 +174,34 @@ export default function ProfileScreen({ navigation }: Props) {
 
               <Pressable
                 style={styles.settingsButton}
-                onPress={() => {
-                  console.log('[RN] 설정 버튼 클릭');
-                  navigation.navigate('Settings');
-                }}
+                onPress={() => navigation.navigate('Settings')}
               >
                 <Text style={styles.settingsButtonText}>설정</Text>
               </Pressable>
             </View>
           </View>
 
-          {/* Stats Cards */}
+          {/* 통계 카드 */}
           <View style={styles.statCard}>
             <Text style={styles.statIcon}>📆</Text>
             <Text style={styles.statLabel}>연속 학습일</Text>
-            <Text style={styles.statValue}>15</Text>
+            <Text style={styles.statValue}>
+              {loadingStats ? '-' : streakValue}
+            </Text>
           </View>
 
           <View style={styles.statCard}>
             <Text style={styles.statIcon}>⭐</Text>
             <Text style={styles.statLabel}>획득 포인트</Text>
-            <Text style={styles.statValue}>1250</Text>
+            <Text style={styles.statValue}>
+              {loadingStats ? '-' : pointsValue}
+            </Text>
           </View>
 
-          {/* Menu Items */}
+          {/* 메뉴들 */}
           <Pressable
             style={styles.menuItem}
-            onPress={() => {
-              console.log('[RN] 학습 통계 클릭');
-              navigation.navigate('StudyStats');
-            }}
+            onPress={() => navigation.navigate('StudyStats')}
           >
             <Text style={styles.menuIcon}>📊</Text>
             <Text style={styles.menuLabel}>학습 통계</Text>
@@ -115,19 +209,11 @@ export default function ProfileScreen({ navigation }: Props) {
 
           <Pressable
             style={styles.menuItem}
-            onPress={() => {
-              console.log('[RN] 회화 스크립트 클릭');
-              navigation.navigate('ChatHistory');
-            }}
+            onPress={() => navigation.navigate('ChatHistory')}
           >
             <Text style={styles.menuIcon}>💬</Text>
             <Text style={styles.menuLabel}>회화 스크립트</Text>
           </Pressable>
-
-          {/* Panda at bottom */}
-          <View style={styles.bottomPandaWrapper}>
-            <Image source={pandaImg} style={styles.bottomPanda} />
-          </View>
         </ScrollView>
       </View>
     </SafeAreaView>
