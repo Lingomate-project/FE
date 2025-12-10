@@ -3,13 +3,6 @@
 import axios from 'axios';
 import { Platform } from 'react-native';
 
-// 로컬 백엔드 (server.js → 3000 포트)
-/*
-const BASE_URL = Platform.select({
-  android: 'http://10.0.2.2:3000',
-  ios: 'http://localhost:3000',
-});
-*/
 // const BASE_URL = "http://lingomate-backend.ap-northeast-2.elasticbeanstalk.com";
 const BASE_URL = "http://10.0.2.2:8080"
 
