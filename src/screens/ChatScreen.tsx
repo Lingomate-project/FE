@@ -84,7 +84,7 @@ export default function ChatScreen() {
     }, [messages]);
 
 
-    // 문법 피드백
+    // [Updated] Feedback Request
     const handleRequestFeedback = async (messageId: string, content: string) => {
         setMessages(prev =>
             prev.map(msg =>
@@ -93,10 +93,24 @@ export default function ChatScreen() {
         );
         try {
             const res = await aiApi.getFeedback(content);
+    
             if (res.data.success && res.data.data) {
-                const { meaning, examples } = res.data.data;
-                const feedbackText = `[Meaning]: ${meaning}\n[Examples]:\n${examples.join('\n')}`;
-
+                const data: any = res.data.data;
+    
+                let feedbackText = "";
+    
+                if (data.natural === false) {
+                    // 교정 필요한 문장
+                    feedbackText =
+                        `[Corrected Sentence]: ${data.corrected_en}\n` +
+                        `[Explanation]: ${data.reason_ko}`;
+                } else if (data.natural === true) {
+                    // 이미 자연스러운 문장
+                    feedbackText = `${data.message}`;
+                } else {
+                    throw new Error("Invalid feedback format");
+                }
+    
                 setMessages(prev =>
                     prev.map(msg =>
                         msg.id === messageId
@@ -104,12 +118,17 @@ export default function ChatScreen() {
                             : msg,
                     ),
                 );
+    
+            } else {
+                throw new Error("Invalid AI response");
             }
-        } catch {
-            Alert.alert('Error', '피드백을 불러오지 못했습니다.');
-            setMessages(prev =>
-                prev.map(msg =>
-                    msg.id === messageId ? { ...msg, isLoadingExtra: false } : msg,
+    
+        } catch (err) {
+                Alert.alert("Error", "피드백을 불러오지 못했습니다.");
+            
+                setMessages(prev =>
+                  prev.map(msg =>
+                    msg.id === messageId ? { ...msg, isLoadingExtra: false } : msg
                 ),
             );
         }
