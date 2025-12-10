@@ -46,9 +46,20 @@ export default function ChatHistoryScreen({ navigation }: Props) {
   const fetchHistory = async () => {
     try {
       setLoading(true);
+  
       const res = await conversationApi.getHistory();
+  
       if (res.data.success && res.data.data) {
-        setChats(res.data.data);
+        const raw = res.data.data.history;  // ← 서버의 history 배열
+  
+        const mapped = raw.map(item => ({
+          sessionId: String(item.sessionId),
+          title: item.script.length > 0 ? item.script[0].text : "새 대화",
+          createdAt: item.startTime,
+          messageCount: item.script.length,
+        }));
+  
+        setChats(mapped);
       }
     } catch (error) {
       console.error(error);
@@ -68,7 +79,7 @@ export default function ChatHistoryScreen({ navigation }: Props) {
 
   const handlePressItem = (item: ConversationHistoryItem) => {
     // 여기서 특정 대화 id를 회화 스크립트 화면으로 넘김
-    navigation.navigate('Script', { chatId: item.sessionId });
+    navigation.navigate('Script', { sessionId: item.sessionId });
   };
 
   const handleClearAll = async () => {

@@ -7,7 +7,7 @@ import {
   StartSessionResponse,
   FinishSessionRequest,
   FinishSessionResponse,
-  ConversationHistoryItem,
+  ConversationHistoryResponse,
   ConversationDetail,
   SubscriptionOptionsResponse,
   SubscribeResponse,
@@ -65,9 +65,10 @@ export const conversationApi = {
    * GET /api/conversation/history
    */
   getHistory: (page = 1, limit = 20) =>
-    client.get<ApiResponse<ConversationHistoryItem[]>>('/api/conversation/history', {
-      params: { page, limit },
-    }),
+    client.get<ApiResponse<ConversationHistoryResponse>>(
+      '/api/conversation/history',
+      { params: { page, limit } },
+    ),
 
   /**
    * 특정 대화 조회

@@ -64,6 +64,20 @@ export interface FinishSessionResponse {
     savedMessages: number;
 }
 
+// 서버가 보내주는 history item(원본)
+export interface ConversationHistoryItemFromServer {
+    sessionId: number;
+    startTime: string;
+    finishedAt: string | null;
+    script: ChatMessage[];
+  }
+  
+  // /api/conversation/history 응답 구조
+  export interface ConversationHistoryResponse {
+    userId: number;
+    history: ConversationHistoryItemFromServer[];
+  }
+
 export interface ConversationHistoryItem {
     sessionId: string;
     title: string;

@@ -22,10 +22,13 @@ export default function ReviewScreen() {
   const navigation = useNavigation<any>();
   const route = useRoute<any>(); // 파라미터를 받기 위해 useRoute 사용
   const insets = useSafeAreaInsets();
+  const sessionId = route.params?.sessionId;
 
   // ✅ ChatScreen에서 넘겨준 reviewCards 데이터를 받음
   // 데이터가 없을 경우(그냥 들어왔을 때 등)를 대비해 빈 배열([])을 기본값으로 설정
   const reviewCards: CardItem[] = route.params?.reviewCards || [];
+
+  console.log("Review sessionId:", sessionId);
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['left', 'right', 'bottom']}>
@@ -77,7 +80,7 @@ export default function ReviewScreen() {
           {/* 스크립트 → ChatScript 화면 */}
           <TouchableOpacity
             style={styles.btn}
-            onPress={() => navigation.navigate('Script')}
+            onPress={() => navigation.navigate('Script', { sessionId })}
           >
             <Text style={styles.btnText}>스크립트</Text>
           </TouchableOpacity>

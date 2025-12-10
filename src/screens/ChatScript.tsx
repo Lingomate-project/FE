@@ -13,7 +13,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { ChevronLeft } from 'lucide-react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { conversationApi } from '../api/conversation';
+import { conversationApi } from '../api/Services';
 
 // ChatScreen과 동일한 타입 정의 (로컬 저장 구조)
 type LocalChatMessage = {
@@ -41,10 +41,12 @@ export default function ScriptScreen() {
   const route = useRoute<any>();
   const insets = useSafeAreaInsets();
 
-  const sessionId: string | undefined = route.params?.sessionId;
+  const sessionId = route.params?.sessionId;
 
   const [scriptData, setScriptData] = useState<DisplayMessage[]>([]);
   const [loading, setLoading] = useState(true);
+
+  console.log("ScriptScreen sessionId:", sessionId);
 
   // ====== 1. 서버에서 스크립트 불러오기 ======
   const loadFromServer = async (sid: string) => {
@@ -52,7 +54,7 @@ export default function ScriptScreen() {
       setLoading(true);
       const res: any = await conversationApi.getConversation(sid);
       // res: { success: true, data: { sessionId, script: [...] } }
-      const script: ServerScriptMessage[] = res?.data?.script ?? [];
+      const script: ServerScriptMessage[] = res?.data?.data?.script ?? [];
 
       const formatted: DisplayMessage[] = script.map((msg, idx) => ({
         id: `${sid}-${idx}`,

@@ -141,21 +141,29 @@ export default function ChatScreen() {
     };
 
     const handleEndChat = async () => {
+        console.log("🔥 handleEndChat clicked!");
+
         if (!sessionId) {
             navigation.navigate('Review');
             return;
         }
-
+    
+        console.log("📤 finishSession sending:", {
+            sessionId: sessionId,
+            scriptLength: messages.length, // 너무 길면 전체 출력하면 복잡하니까 길이만
+        });
+        
         try {
-            // 메시지 포맷 변환
-            const script: ChatMessage[] = messages.map(m => ({
-                from: m.role === 'user' ? 'user' : 'ai',
-                text: m.content,
-            }));
-
-            await conversationApi.finishSession({ sessionId, script });
+            await conversationApi.finishSession({
+                sessionId: sessionId,
+                script: messages.map(m => ({
+                    from: m.role === 'user' ? 'user' : 'ai',
+                    text: m.content
+                }))
+            });
+    
             Alert.alert('저장 완료', '대화 내용이 저장되었습니다.', [
-                { text: '확인', onPress: () => navigation.navigate('Review') }
+                { text: '확인', onPress: () => navigation.navigate('Review', { sessionId }) }
             ]);
         } catch (error) {
             console.error('Failed to save session:', error);
