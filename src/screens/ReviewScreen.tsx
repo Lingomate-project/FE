@@ -1,94 +1,65 @@
 // src/screens/ReviewScreen.tsx
-
-import React from 'react';
+import React from "react";
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
   ScrollView,
-} from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useNavigation, useRoute } from '@react-navigation/native';
-import { ChevronLeft } from 'lucide-react-native';
+} from "react-native";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { useNavigation, useRoute } from "@react-navigation/native";
+import { ChevronLeft } from "lucide-react-native";
 
-// 데이터 타입 정의
 type CardItem = {
-  en: string;
-  kr: string;
+  corrected: string;     // 교정 문장 또는 추천 문장
+  explanation: string;   // 설명 or 추천 이유
+  type: "feedback" | "suggestion";
 };
 
 export default function ReviewScreen() {
   const navigation = useNavigation<any>();
-  const route = useRoute<any>(); // 파라미터를 받기 위해 useRoute 사용
   const insets = useSafeAreaInsets();
-  const sessionId = route.params?.sessionId;
+  const route = useRoute<any>();
 
-  // ✅ ChatScreen에서 넘겨준 reviewCards 데이터를 받음
-  // 데이터가 없을 경우(그냥 들어왔을 때 등)를 대비해 빈 배열([])을 기본값으로 설정
   const reviewCards: CardItem[] = route.params?.reviewCards || [];
 
-  console.log("Review sessionId:", sessionId);
-
   return (
-    <SafeAreaView style={styles.safeArea} edges={['left', 'right', 'bottom']}>
+    <SafeAreaView style={styles.safeArea} edges={["left", "right", "bottom"]}>
       <View style={[styles.root, { paddingTop: insets.top }]}>
-        
-        {/* ===== 통일된 헤더 ===== */}
+        {/* 헤더 */}
         <View style={styles.header}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => navigation.goBack()}
-          >
+          <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
             <ChevronLeft size={24} color="#2c303c" />
           </TouchableOpacity>
-
           <Text style={styles.headerTitle}>복습하기</Text>
-
-          {/* 오른쪽 공간 (정렬 유지용) */}
           <View style={{ width: 32 }} />
         </View>
 
         {/* 카드 리스트 */}
-        <ScrollView
-          contentContainerStyle={styles.cardList}
-          showsVerticalScrollIndicator={false}
-        >
+        <ScrollView contentContainerStyle={styles.cardList}>
           {reviewCards.length > 0 ? (
-            // 데이터가 있을 때 출력
-            reviewCards.map((item, index) => (
-              <View key={index} style={styles.card}>
+            reviewCards.map((item, i) => (
+              <View key={i} style={styles.card}>
                 <View style={styles.cardBg} />
                 <View style={styles.cardContentRow}>
-                  <Text style={styles.cardTextEn}>{item.en}</Text>
-                  <Text style={styles.cardTextKr}>{item.kr}</Text>
+                  <Text style={styles.cardTextEn}>{item.corrected}</Text>
+                  <Text style={styles.cardTextKr}>{item.explanation}</Text>
                 </View>
               </View>
             ))
           ) : (
-            // 데이터가 없을 때 표시할 화면 (예외 처리)
             <View style={styles.emptyContainer}>
-              <Text style={styles.emptyText}>
-                추출된 표현이 없거나 대화 내역이 없습니다.
-              </Text>
+              <Text style={styles.emptyText}>저장된 복습 데이터가 없습니다.</Text>
             </View>
           )}
         </ScrollView>
 
-        {/* 하단 버튼 두 개 */}
+        {/* 하단 버튼 */}
         <View style={styles.bottomButtonsRow}>
-          {/* 스크립트 → ChatScript 화면 */}
           <TouchableOpacity
             style={styles.btn}
-            onPress={() => navigation.navigate('Script', { sessionId })}
-          >
-            <Text style={styles.btnText}>스크립트</Text>
-          </TouchableOpacity>
-
-          {/* 홈으로 → HomeScreen 화면 */}
-          <TouchableOpacity
-            style={styles.btn}
-            onPress={() => navigation.navigate('Home')}
+            onPress={() => navigation.navigate("Home")}
           >
             <Text style={styles.btnText}>홈으로</Text>
           </TouchableOpacity>
@@ -99,108 +70,48 @@ export default function ReviewScreen() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: '#E5E7ED',
-  },
-  root: {
-    flex: 1,
-    backgroundColor: '#E5E7ED',
-  },
+  safeArea: { flex: 1, backgroundColor: "#E5E7ED" },
+  root: { flex: 1 },
 
-  /* ===== 통일된 헤더 스타일 ===== */
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: '#d5d8e0',
-    borderBottomWidth: 1,
-    borderBottomColor: '#c5c8d4',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    padding: 16,
+    backgroundColor: "#d5d8e0",
   },
-  backButton: {
-    width: 32,
-    height: 32,
-    justifyContent: 'center',
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#2c303c',
-    textAlign: 'center',
-  },
+  backButton: { width: 32 },
+  headerTitle: { fontSize: 18, fontWeight: "600" },
 
-  /* 카드 리스트 */
-  cardList: {
-    paddingHorizontal: 20,
-    paddingBottom: 100,
-    rowGap: 12,
-    marginTop: 12,
-  },
-  card: {
-    width: '100%',
-    minHeight: 61, // 내용이 길어질 수 있으므로 minHeight로 변경 권장
-    justifyContent: 'center',
-    marginVertical: 4, // 카드 간 간격 미세 조정
-  },
+  cardList: { padding: 20, rowGap: 12, paddingBottom: 120 },
+  card: { minHeight: 60, justifyContent: "center" },
   cardBg: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(191,195,208,0.5)',
-    borderRadius: 15,
+    backgroundColor: "rgba(191,195,208,0.5)",
+    borderRadius: 12,
   },
   cardContentRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 12, // 텍스트 상하 여백 확보
+    flexDirection: "row",
+    justifyContent: "space-between",
+    padding: 16,
   },
-  cardTextEn: {
-    fontSize: 16, // 긴 문장 고려하여 약간 조절
-    fontWeight: '500', // 가독성을 위해 굵기 조절
-    color: '#000',
-    flex: 1, // 텍스트가 길 경우 줄바꿈 되도록
-    marginRight: 10,
-  },
-  cardTextKr: {
-    fontSize: 15,
-    fontWeight: '400',
-    color: '#4B5563', // 약간 연한 색으로 구분
-    maxWidth: '40%', // 한국어 뜻이 너무 길지 않게 제한
-    textAlign: 'right',
-  },
+  cardTextEn: { fontSize: 16, fontWeight: "600", flex: 1, marginRight: 10 },
+  cardTextKr: { fontSize: 14, color: "#4B5563", maxWidth: "45%", textAlign: "right" },
 
-  /* 데이터 없음 예외 처리 스타일 */
-  emptyContainer: {
-    marginTop: 50,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  emptyText: {
-    fontSize: 16,
-    color: '#6b7280',
-  },
+  emptyContainer: { marginTop: 50, alignItems: "center" },
+  emptyText: { color: "#6b7280", fontSize: 16 },
 
-  /* 하단 버튼 영역 */
   bottomButtonsRow: {
-    position: 'absolute',
-    bottom: 32,
-    left: 0,
-    right: 0,
-    flexDirection: 'row',
-    justifyContent: 'space-evenly',
+    position: "absolute",
+    bottom: 30,
+    width: "100%",
+    flexDirection: "row",
+    justifyContent: "center",
   },
   btn: {
-    width: 120,
-    height: 40,
-    backgroundColor: '#2C303C',
+    backgroundColor: "#2C303C",
+    paddingHorizontal: 24,
+    paddingVertical: 10,
     borderRadius: 10,
-    justifyContent: 'center',
-    alignItems: 'center',
   },
-  btnText: {
-    fontSize: 14,
-    color: '#D5D8E0',
-  },
+  btnText: { color: "#fff", fontSize: 14 },
 });

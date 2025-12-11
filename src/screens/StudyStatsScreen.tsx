@@ -1,6 +1,6 @@
 // src/screens/StudyStatsScreen.tsx
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -11,7 +11,8 @@ import {
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import PandaIcon from '../components/PandaIcon';
-import client from '../api/Client';
+import { statsApi } from '../api/stats'; // ← 반드시 client 사용하는 statsApi
+import { useFocusEffect } from '@react-navigation/native';
 
 type Props = {
   navigation: any;
@@ -32,55 +33,61 @@ export default function StudyStatsScreen({ navigation }: Props) {
   const [stats, setStats] = useState<StatsData | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // 🔥 1. 백엔드에서 학습 통계 가져오기 (unmount 안전 처리 포함)
-  useEffect(() => {
-    let isMounted = true;
+  // 🔥 백엔드에서 학습 통계 가져오기 
+  const fetchStats = useCallback(async () => {
+    setLoading(true);
+    try {
+      console.log('[StudyStats] fetchStats 호출');
+      const res = await statsApi.getStats();
+      console.log(
+        '[StudyStats] /api/stats 응답:',
+        JSON.stringify(res.data, null, 2),
+      );
 
-    const fetchStats = async () => {
-      try {
-        const res = await client.get('/api/stats');
-        const data = res.data?.data || {};
+      const data = res.data?.data || {};
 
-        if (!isMounted) return;
+      setStats({
+        totalSessions: data.totalSessions ?? 0,
+        totalMinutes: data.totalMinutes ?? 0,
+        avgScore: data.avgScore ?? 0,
+        bestScore: data.bestScore ?? 0,
+        streak: data.streak ?? 0,
+        newWordsLearned: data.newWordsLearned ?? 0,
+      });
+    } catch (err: any) {
+      console.log(
+        '[StudyStats] /api/stats 호출 실패:',
+        err?.response?.status,
+        err?.response?.data,
+      );
 
-        setStats({
-          totalSessions: data.totalSessions ?? 0,
-          totalMinutes: data.totalMinutes ?? 0,
-          avgScore: data.avgScore ?? 0,
-          bestScore: data.bestScore ?? 0,
-          streak: data.streak ?? 0,
-          newWordsLearned: data.newWordsLearned ?? 0,
-        });
-      } catch (e) {
-        console.log('[StudyStats] /api/stats 호출 실패:', e);
-
-        if (!isMounted) return;
-
-        // 실패해도 화면이 완전히 죽지 않도록 기본값 세팅
-        setStats({
-          totalSessions: 0,
-          totalMinutes: 0,
-          avgScore: 0,
-          bestScore: 0,
-          streak: 0,
-          newWordsLearned: 0,
-        });
-      } finally {
-        if (isMounted) {
-          setLoading(false);
-        }
-      }
-    };
-
-    fetchStats();
-
-    // 언마운트 시 플래그 내려서 setState 방지
-    return () => {
-      isMounted = false;
-    };
+      // 실패해도 화면은 유지되도록 기본값
+      setStats({
+        totalSessions: 0,
+        totalMinutes: 0,
+        avgScore: 0,
+        bestScore: 0,
+        streak: 0,
+        newWordsLearned: 0,
+      });
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  // 🔢 2. 총 학습 시간 표기: 분 → "xxh xxm" 형식
+  // 처음 들어올 때 1번 호출
+  useEffect(() => {
+    fetchStats();
+  }, [fetchStats]);
+
+  // 다시 이 화면으로 돌아올 때마다 새로 호출
+  useFocusEffect(
+    useCallback(() => {
+      fetchStats();
+    }, [fetchStats]),
+  );
+
+  // 총 학습 시간: 분 → xxh xxm
   const getTotalHoursLabel = () => {
     if (!stats) return '-';
     const hours = Math.floor(stats.totalMinutes / 60);
@@ -92,7 +99,6 @@ export default function StudyStatsScreen({ navigation }: Props) {
     return `${minutes}m`;
   };
 
-  // 🔢 3. 점수 포맷: 소수점 1자리까지만
   const formatScore = (value: number) => {
     if (value === null || value === undefined || Number.isNaN(value)) {
       return '-';
@@ -100,17 +106,16 @@ export default function StudyStatsScreen({ navigation }: Props) {
     return Math.round(value).toString();
   };
 
-  // 🐼 4. 진행도 팬더 개수 계산: "3회마다 팬더 1개"
+  // 3회마다 팬더 1개, 최대 12개
   const getPandaCount = () => {
     if (!stats) return 0;
     const count = Math.floor(stats.totalSessions / 3);
-    // 현재 칸이 12개(3행×4열)이므로 최대 12로 제한
     return Math.min(count, 12);
   };
 
   const pandaCount = getPandaCount();
 
-  // 로딩 상태 처리
+  // 로딩 화면
   if (loading || !stats) {
     return (
       <SafeAreaView
@@ -136,13 +141,14 @@ export default function StudyStatsScreen({ navigation }: Props) {
     );
   }
 
+  // 실제 화면
   return (
     <SafeAreaView
       style={styles.safeArea}
       edges={['left', 'right', 'bottom']}
     >
       <View style={[styles.root, { paddingTop: insets.top }]}>
-        {/* ===== 상단 헤더 ===== */}
+        {/* ===== 헤더 ===== */}
         <View style={styles.header}>
           <Pressable
             style={styles.backButton}
@@ -206,7 +212,7 @@ export default function StudyStatsScreen({ navigation }: Props) {
               하루 3회 이상 대화 시 10포인트 (3회마다 팬더 1개)
             </Text>
 
-            {/* 1행 뱃지 (4칸) */}
+            {/* 1행 */}
             <View style={styles.badgeRow}>
               {[0, 1, 2, 3].map((idx) => (
                 <View key={idx} style={styles.badgeBox}>
@@ -215,7 +221,7 @@ export default function StudyStatsScreen({ navigation }: Props) {
               ))}
             </View>
 
-            {/* 2행 뱃지 */}
+            {/* 2행 */}
             <View style={styles.badgeRow}>
               {[4, 5, 6, 7].map((idx) => (
                 <View key={idx} style={styles.badgeBox}>
@@ -224,7 +230,7 @@ export default function StudyStatsScreen({ navigation }: Props) {
               ))}
             </View>
 
-            {/* 3행 뱃지 */}
+            {/* 3행 */}
             <View style={styles.badgeRow}>
               {[8, 9, 10, 11].map((idx) => (
                 <View key={idx} style={styles.badgeBox}>

@@ -64,7 +64,7 @@ export default function ProfileScreen({ navigation }: Props) {
     return unsubscribe;
   }, [navigation]);
 
-  // ✅ 2. 통계는 그대로
+  // ✅ 2. 통계: 마운트될 때 + 화면 포커스될 때마다 /api/stats 재요청
   useEffect(() => {
     let isMounted = true;
 
@@ -101,16 +101,27 @@ export default function ProfileScreen({ navigation }: Props) {
       }
     };
 
+    // 처음 들어왔을 때 한 번 호출
     fetchStats();
+
+    // 🔥 화면이 다시 포커스될 때마다 새로 호출
+    const unsubscribe = navigation.addListener('focus', () => {
+      if (!isMounted) return;
+      setLoadingStats(true); // 로딩 상태로 바꿔주고
+      fetchStats();          // 다시 /api/stats 요청
+    });
+
     return () => {
       isMounted = false;
+      unsubscribe();
     };
-  }, []);
+  }, [navigation]);
 
+  // ✅ 3. 포인트 계산: 통계 화면과 동일한 규칙 사용
   const getTotalPoints = () => {
     if (!stats) return 0;
-    const pandaCount = Math.floor(stats.totalSessions / 3);
-    return pandaCount * 10;
+    const pandaCount = Math.floor(stats.totalSessions / 3); // 예: 3회 = 판다 1개
+    return pandaCount * 10; // 판다 1개 = 10점
   };
 
   const streakValue = stats ? stats.streak : 0;
@@ -165,7 +176,6 @@ export default function ProfileScreen({ navigation }: Props) {
 
               <View style={styles.profileInfo}>
                 <Text style={styles.profileName}>{userName}</Text>
-                <Text style={styles.profileEmail}>kmm@gmail.com</Text>
                 <View style={styles.profilePlanRow}>
                   <View style={styles.planDot} />
                   <Text style={styles.profilePlanText}>베이직</Text>

@@ -163,12 +163,9 @@ export const settingsApi = {
 
 // === 6. 학습 통계 (Stats) ===
 export const statsApi = {
-  /**
-   * 통계 조회
-   * GET /api/stats
-   */
-  getStats: () => client.get<ApiResponse<UserStats>>('/api/stats'),
+  getStats: () => client.get('/api/stats'),
 };
+
 
 // === 7. 스크립트(암기 문장) (Phrases) ===
 export const phrasesApi = {

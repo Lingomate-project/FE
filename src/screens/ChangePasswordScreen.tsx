@@ -22,28 +22,36 @@ export default function ChangePasswordScreen({ navigation }: Props) {
   const [loading, setLoading] = useState(false);
 
   const handleOpenResetPage = async () => {
-    if (loading) return;
-    setLoading(true);
+  if (loading) return;
+  setLoading(true);
 
+  try {
+    // 1️⃣ 기존 Auth0 세션(SSO) 끊기
     try {
-      // 🔐 Auth0 Universal Login 바로 열기
-      await auth0.webAuth.authorize({
-        scope: 'openid profile email',
-        redirectUrl: REDIRECT_URI,
-      });
-
-      // 여기까지 오면 로그인까지 완료된 상태
-      // (비밀번호만 바꾸려는 경우엔 크게 의미 없음. cancel도 가능)
-    } catch (e) {
-      console.log('open auth0 login error:', e);
-      Alert.alert(
-        '오류',
-        '비밀번호 재설정 화면으로 이동하는 중 문제가 발생했습니다.',
-      );
-    } finally {
-      setLoading(false);
+      await auth0.webAuth.clearSession({ federated: true });
+    } catch (err) {
+      console.log('clearSession error (ignored):', err);
     }
-  };
+
+    // 2️⃣ 무조건 로그인 화면 다시 띄우기
+    await auth0.webAuth.authorize({
+      scope: 'openid profile email',
+      redirectUrl: REDIRECT_URI,
+      additionalParameters: {
+        prompt: 'login',
+      },
+    });
+  } catch (e) {
+    console.log('open auth0 login error:', e);
+    Alert.alert(
+      '오류',
+      '비밀번호 재설정 화면으로 이동하는 중 문제가 발생했습니다.',
+    );
+  } finally {
+    setLoading(false);
+  }
+};
+
 
   return (
     <SafeAreaView
