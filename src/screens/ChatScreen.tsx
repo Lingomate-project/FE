@@ -1,6 +1,6 @@
 // src/screens/ChatScreen.tsx
 import PandaIcon from '../components/PandaIcon';
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -14,7 +14,13 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
+import {
+  useNavigation,
+  useRoute,
+  RouteProp,
+  useIsFocused,
+  useFocusEffect,
+} from '@react-navigation/native';
 import { Send, Mic, Eye, Lightbulb, X } from 'lucide-react-native';
 import { aiApi, conversationApi } from '../api/Services';
 
@@ -54,6 +60,9 @@ export default function ChatScreen() {
   const navigation = useNavigation<any>();
   const route = useRoute<RouteProp<RootStackParamList, 'Chat'>>();
   const insets = useSafeAreaInsets();
+  const isFocused = useIsFocused();
+
+  const TIMER_MS = 10 * 60 * 1000;
 
   const initialMode = route.params?.mode || 'casual';
   const [mode, setMode] = useState(initialMode);
@@ -79,23 +88,48 @@ export default function ChatScreen() {
 
   // ⏱ 10분 제한 관련 상태
   const [timeUp, setTimeUp] = useState(false);
-  const [remainingMs, setRemainingMs] = useState(10 * 60 * 1000); // 10분
+  const [remainingMs, setRemainingMs] = useState(TIMER_MS);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // 1. 세션 시작
+  // ✅ ChatScreen "들어갈 때마다" 무조건 10:00부터 시작 + 나가면 타이머 정리
+  useFocusEffect(
+    useCallback(() => {
+      // 들어올 때 리셋
+      setTimeUp(false);
+      setRemainingMs(TIMER_MS);
+
+      // 혹시 남아있던 interval 있으면 먼저 정리
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+
+      // 나갈 때 정리 (다른 화면에서 Alert 절대 안 뜨게)
+      return () => {
+        if (timerRef.current) {
+          clearInterval(timerRef.current);
+          timerRef.current = null;
+        }
+      };
+    }, []),
+  );
+
+  // 1. 세션 시작 (컴포넌트 mount 1회)
   useEffect(() => {
     const initSession = async () => {
       try {
         const res = await conversationApi.startSession();
 
         if (res.data.success && res.data.data) {
-          // 서버 응답이 string/number 섞여 와도 안전하게 문자열로 저장
           const sid = String((res.data.data as any).sessionId);
           setSessionId(sid);
 
-          const st = (res.data.data as any).startTime ? String((res.data.data as any).startTime) : null;
+          const st = (res.data.data as any).startTime
+            ? String((res.data.data as any).startTime)
+            : null;
           setServerStartTime(st);
 
-          // ✅ 로컬 시작 시각 저장
+          // ✅ 로컬 시작 시각 저장 (세션 단위)
           setSessionStartMs(Date.now());
 
           console.log('Session Started:', sid, 'startTime:', st);
@@ -110,23 +144,45 @@ export default function ChatScreen() {
   }, []);
 
   // ⏱ 2. 1초마다 남은 시간 줄이기
+  // ✅ ChatScreen에 "포커스일 때만" interval 작동
+  // ✅ Alert도 "포커스일 때만" 뜸
   useEffect(() => {
-    if (timeUp) return;
+    if (!isFocused || timeUp) return;
 
-    const interval = setInterval(() => {
+    // 이미 interval 있으면 중복 방지
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+
+    timerRef.current = setInterval(() => {
       setRemainingMs(prev => {
         if (prev <= 1000) {
-          clearInterval(interval);
+          if (timerRef.current) {
+            clearInterval(timerRef.current);
+            timerRef.current = null;
+          }
+
           setTimeUp(true);
-          Alert.alert('시간 종료', '회화 시간이 종료되었습니다.');
+
+          // ✅ 다른 화면에서 팝업 뜨는 것 방지: 포커스일 때만
+          if (isFocused) {
+            Alert.alert('시간 종료', '회화 시간이 종료되었습니다.');
+          }
+
           return 0;
         }
         return prev - 1000;
       });
     }, 1000);
 
-    return () => clearInterval(interval);
-  }, [timeUp]);
+    return () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+    };
+  }, [isFocused, timeUp]);
 
   // 남은 시간 mm:ss 포맷
   const formatTime = (ms: number) => {
@@ -168,7 +224,9 @@ export default function ChatScreen() {
 
         setMessages(prev =>
           prev.map(msg =>
-            msg.id === messageId ? { ...msg, feedback: feedbackText, isLoadingExtra: false } : msg,
+            msg.id === messageId
+              ? { ...msg, feedback: feedbackText, isLoadingExtra: false }
+              : msg,
           ),
         );
       } else {
@@ -199,9 +257,15 @@ export default function ChatScreen() {
     ]);
   };
 
-  // ✅ 종료 시: durationMs / startedAt / finishedAt 같이 보냄
+  // ✅ 회화 종료: ReviewCards 생성 + 세션 저장 + 다른 화면에서 타이머/Alert 방지 위해 interval stop
   const handleEndChat = async () => {
     console.log('🔥 handleEndChat clicked!');
+
+    // ✅ 다른 화면으로 가기 전에 타이머 중지 (포커스 바뀌기 전 race 방지)
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
 
     const reviewCards = messages
       .filter(m => m.role === 'user' && m.feedback)
@@ -223,9 +287,9 @@ export default function ChatScreen() {
       return;
     }
 
-    // ✅ duration 계산 (로컬 기준)
     const finishedAtIso = new Date().toISOString();
-    const startedAtIso = serverStartTime ?? (sessionStartMs ? new Date(sessionStartMs).toISOString() : null);
+    const startedAtIso =
+      serverStartTime ?? (sessionStartMs ? new Date(sessionStartMs).toISOString() : null);
     const durationMs =
       sessionStartMs != null ? Math.max(0, Date.now() - sessionStartMs) : undefined;
 
@@ -235,7 +299,6 @@ export default function ChatScreen() {
         from: m.role === 'user' ? 'user' : 'ai',
         text: m.content,
       })),
-      // ✅ 추가 필드들
       durationMs,
       startedAt: startedAtIso ?? undefined,
       finishedAt: finishedAtIso,
@@ -317,9 +380,7 @@ export default function ChatScreen() {
           {!isUser && (
             <TouchableOpacity
               onPress={() =>
-                item.suggestion
-                  ? handleCloseExtra(item.id, 'suggestion')
-                  : handleRequestSuggestion()
+                item.suggestion ? handleCloseExtra(item.id, 'suggestion') : handleRequestSuggestion()
               }
               style={styles.actionIconBtn}
               disabled={item.isLoadingExtra}
@@ -337,7 +398,7 @@ export default function ChatScreen() {
           )}
 
           <View style={[styles.bubble, isUser ? styles.userBubble : styles.assistantBubble]}>
-            <Text style={styles.messageText}>{item.content}</Text>
+            <Text style={[styles.messageText, isUser && { color: '#fff' }]}>{item.content}</Text>
           </View>
 
           {isUser && (
