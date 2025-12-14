@@ -9,7 +9,6 @@ import {
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, useRoute } from "@react-navigation/native";
-import { ChevronLeft } from "lucide-react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 type CardItem = {
@@ -114,9 +113,6 @@ export default function ReviewScreen() {
       <View style={[styles.root, { paddingTop: insets.top }]}>
         {/* 헤더 */}
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={{ width: 32 }}>
-            <ChevronLeft size={24} color="#2c303c" />
-          </TouchableOpacity>
           <Text style={styles.headerTitle}>복습하기</Text>
           <View style={{ width: 32 }} />
         </View>
@@ -157,7 +153,7 @@ const styles = StyleSheet.create({
 
   header: {
     flexDirection: "row",
-    justifyContent: "space-between",
+    justifyContent: "center",
     padding: 16,
     backgroundColor: "#d5d8e0",
   },

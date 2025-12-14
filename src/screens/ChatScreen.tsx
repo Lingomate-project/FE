@@ -261,9 +261,7 @@ export default function ChatScreen() {
 
   // ✅ 토글: 한 번 누르면 시작 / 다시 누르면 종료+STT
   const toggleRecording = async () => {
-    if (timeUp) return;
-    if (sttLoading) return;
-
+    if (timeUp || sttLoading || ttsLoading) return;
     if (isRecording) {
       await stopRecordingAndSTT();
     } else {

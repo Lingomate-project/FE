@@ -63,22 +63,25 @@ export const aiApi = {
   stt: async (file: any, sampleRate = 16000) => {
     const token = await AsyncStorage.getItem(ACCESS_TOKEN_KEY);
 
-    // ✅ 어떤 키로 와도 uri로 정규화
-    const uri =
-      file?.uri ??
-      file?.uuri ??
-      file?.[' uri'] ??
-      file?.['uri '] ??
-      file?.[' uuri'] ??
-      null;
+    if (!file?.uri) {
+      console.error('❌ STT file.uri missing:', file);
+      return;
+    }
+
+    const uri = String(file.uri).trim();
 
     const fixedFile: UploadFile = {
-      uri: String(uri ?? ''),
-      name: String(file?.name ?? 'stt_record.wav'),
-      type: String(file?.type ?? 'audio/wav'),
+      uri: (() => {
+        const raw = String(uri ?? '').trim();
+        if (!raw) return '';
+        return raw.startsWith('file://') ? raw : `file://${raw}`;
+      })(),
+      name: String(file?.name ?? 'stt_record.wav').trim(),
+      type: String(file?.type ?? 'audio/wav').trim(),
     };
 
-    console.log('🎙️ STT file keys:', Object.keys(file ?? {}));
+
+    console.log('🎙️ STT file keys (real):', Object.keys(fixedFile));
     console.log('🎙️ STT fixedFile(before):', fixedFile);
 
     if (!fixedFile.uri) {
@@ -94,7 +97,7 @@ export const aiApi = {
 
     const form = new FormData();
     // ✅ 핵심: field name을 file로
-    form.append('file', fixedFile as any);
+    form.append('audio', fixedFile as any);
     form.append('sampleRate', String(sampleRate));
 
     console.log('🔥 STT fetch url:', STT_URL);

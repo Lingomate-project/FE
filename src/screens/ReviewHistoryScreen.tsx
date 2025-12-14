@@ -126,7 +126,7 @@ export default function ReviewHistoryScreen() {
           <TouchableOpacity onPress={() => navigation.goBack()} style={{ width: 32 }}>
             <ChevronLeft size={24} color="#2c303c" />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>복습하기</Text>
+          <Text style={styles.headerTitle}>복습 카드</Text>
           <View style={{ width: 32 }} />
         </View>
 
@@ -153,13 +153,6 @@ export default function ReviewHistoryScreen() {
             </View>
           )}
         </ScrollView>
-
-        {/* 하단 버튼 */}
-        <View style={styles.bottomButtonsRow}>
-          <TouchableOpacity style={styles.btn} onPress={() => navigation.navigate("Home")}>
-            <Text style={styles.btnText}>홈으로</Text>
-          </TouchableOpacity>
-        </View>
       </View>
     </SafeAreaView>
   );
@@ -196,18 +189,4 @@ const styles = StyleSheet.create({
   emptyContainer: { marginTop: 50, alignItems: "center" },
   emptyText: { color: "#6b7280", fontSize: 16 },
 
-  bottomButtonsRow: {
-    position: "absolute",
-    bottom: 30,
-    width: "100%",
-    flexDirection: "row",
-    justifyContent: "center",
-  },
-  btn: {
-    backgroundColor: "#2C303C",
-    paddingHorizontal: 24,
-    paddingVertical: 10,
-    borderRadius: 10,
-  },
-  btnText: { color: "#fff", fontSize: 14 },
 });
