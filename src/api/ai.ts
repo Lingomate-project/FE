@@ -2,6 +2,7 @@
 import { Platform } from 'react-native';
 import client, { BASE_URL } from './Client';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import RNBlobUtil from 'react-native-blob-util';
 
 const ACCESS_TOKEN_KEY = 'accessToken';
 
@@ -11,9 +12,32 @@ export type UploadFile = {
   type: string;
 };
 
-// ✅ STT는 일단 하드코딩 유지 (네가 원한 방식)
 const STT_URL =
   'http://lingomate-backend.ap-northeast-2.elasticbeanstalk.com/api/ai/stt';
+
+/**
+ * ✅ 디버깅 토글
+ * - TEST_DROP_SAMPLERATE: sampleRate 필드 제거해서 서버 파싱 문제인지 확인
+ * - TEST_FORCE_OCTET: 파일 mimetype을 application/octet-stream으로 강제
+ *
+ * ※ 둘 다 false로 두면 기존과 동일하게 동작
+ */
+const TEST_DROP_SAMPLERATE = false;
+const TEST_FORCE_OCTET = false;
+
+// file:// / filee:// 정리 + android file:// 보장
+const ensureFileUri = (u: string) => {
+  let raw = String(u ?? '').trim();
+  raw = raw.replace(/^filee:\/\//, 'file://');
+  if (!raw) return '';
+  if (Platform.OS === 'android') {
+    return raw.startsWith('file://') ? raw : `file://${raw}`;
+  }
+  return raw;
+};
+
+// RNBlobUtil.wrap()에는 "file://" 없는 실제 경로가 더 안전함
+const stripFilePrefix = (u: string) => String(u ?? '').replace(/^file:\/\//, '');
 
 export const aiApi = {
   // POST /api/ai/chat
@@ -30,19 +54,21 @@ export const aiApi = {
   ) => client.post('/api/ai/tts', { text, accent, gender }),
 
   /**
-   * ✅ STT PROBE (네트워크 레벨 확인용)
-   * - status가 찍히면 "폰/망에서 서버까지는 닿음"
-   * - 400/415/401이어도 네트워크는 OK일 수 있음
+   * ✅ STT PROBE
+   * - 400이어도 "서버 도달" 확인용
+   * - 토큰 포함
    */
   sttProbe: async () => {
-    const url = STT_URL;
+    const token = await AsyncStorage.getItem(ACCESS_TOKEN_KEY);
 
-    console.log('🧪 STT PROBE url:', url);
+    console.log('🧪 STT PROBE url:', STT_URL);
     console.log('🧪 BASE_URL json:', JSON.stringify(BASE_URL));
+    console.log('🧪 token exists?:', !!token);
 
-    const res = await fetch(url, {
+    const res = await fetch(STT_URL, {
       method: 'POST',
       headers: {
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
         'Content-Type': 'application/json',
         Accept: 'application/json',
       },
@@ -52,79 +78,92 @@ export const aiApi = {
     const text = await res.text();
     console.log('🧪 STT PROBE status:', res.status);
     console.log('🧪 STT PROBE body head:', text.slice(0, 200));
+    console.log('🧪 STT PROBE content-type:', res.headers?.get?.('content-type'));
+
     return { status: res.status, body: text };
   },
 
   /**
-   * ✅ STT (fetch 멀티파트)
-   * - Content-Type 직접 넣지 말기(boundary 자동)
-   * - field명은 'file'로 고정(대부분 multer.single('file'))
+   * ✅ STT 업로드 (RNBlobUtil 멀티파트)
+   * - 백엔드 field name: audio
    */
   stt: async (file: any, sampleRate = 16000) => {
     const token = await AsyncStorage.getItem(ACCESS_TOKEN_KEY);
-
-    if (!file?.uri) {
-      console.error('❌ STT file.uri missing:', file);
-      return;
-    }
-
-    const uri = String(file.uri).trim();
+    if (!file?.uri) throw new Error('STT file.uri missing');
 
     const fixedFile: UploadFile = {
-      uri: (() => {
-        const raw = String(uri ?? '').trim();
-        if (!raw) return '';
-        return raw.startsWith('file://') ? raw : `file://${raw}`;
-      })(),
+      uri: ensureFileUri(String(file.uri)),
       name: String(file?.name ?? 'stt_record.wav').trim(),
       type: String(file?.type ?? 'audio/wav').trim(),
     };
 
+    if (!fixedFile.uri) throw new Error(`STT invalid uri: ${fixedFile.uri}`);
 
-    console.log('🎙️ STT file keys (real):', Object.keys(fixedFile));
-    console.log('🎙️ STT fixedFile(before):', fixedFile);
+    // ✅ RNBlobUtil.wrap은 file:// 없는 "실제 경로"가 안전
+    const realPath = stripFilePrefix(fixedFile.uri).trim();
 
-    if (!fixedFile.uri) {
-      throw new Error(`STT invalid uri: ${fixedFile.uri}`);
-    }
-
-    // ✅ Android는 file:// 없으면 붙여줌 (ChatScreen에서 붙여도 안전장치로 한 번 더)
-    if (Platform.OS === 'android' && !fixedFile.uri.startsWith('file://')) {
-      fixedFile.uri = `file://${fixedFile.uri}`;
-    }
-
-    console.log('🎙️ STT fixedFile(after):', fixedFile);
-
-    const form = new FormData();
-    // ✅ 핵심: field name을 file로
-    form.append('audio', fixedFile as any);
-    form.append('sampleRate', String(sampleRate));
-
-    console.log('🔥 STT fetch url:', STT_URL);
-
-    const res = await fetch(STT_URL, {
-      method: 'POST',
-      headers: {
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        Accept: 'application/json',
-        // ⚠️ Content-Type 절대 넣지 마!
-      },
-      body: form,
+    console.log('🎙️ STT fixedFile:', fixedFile);
+    console.log('🎙️ STT realPath:', realPath);
+    console.log('🎙️ STT token exists?:', !!token);
+    console.log('🔥 STT upload url:', STT_URL);
+    console.log('🧩 STT toggles:', {
+      TEST_DROP_SAMPLERATE,
+      TEST_FORCE_OCTET,
     });
 
-    const text = await res.text();
-    console.log('✅ STT fetch status:', res.status);
-    console.log('✅ STT body head:', text.slice(0, 200));
+    // ✅ 파일 존재/사이즈 확인 (0이면 업로드 의미 없음)
+    try {
+      const stat = await RNBlobUtil.fs.stat(realPath);
+      console.log('📦 STT file stat:', { path: stat.path, size: stat.size });
+      if (!stat.size || Number(stat.size) <= 0) {
+        throw new Error(`STT file is empty (size=${stat.size})`);
+      }
+    } catch (e: any) {
+      console.log('❌ STT file stat failed:', String(e?.message ?? e));
+      throw new Error(`STT cannot stat file: ${realPath}`);
+    }
 
-    if (!res.ok) {
-      throw new Error(`STT ${res.status}: ${text}`);
+    const headers: Record<string, string> = {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      Accept: 'application/json',
+      'Content-Type': 'multipart/form-data',
+    };
+
+    const fileTypeToSend = TEST_FORCE_OCTET
+      ? 'application/octet-stream'
+      : fixedFile.type;
+
+    // ✅ 멀티파트 파트 구성
+    const parts: any[] = [
+      {
+        name: 'audio', // ✅ 서버 요구 필드명
+        filename: fixedFile.name,
+        type: fileTypeToSend,
+        data: RNBlobUtil.wrap(realPath),
+      },
+    ];
+
+    if (!TEST_DROP_SAMPLERATE) {
+      parts.push({ name: 'sampleRate', data: String(sampleRate) });
+    }
+
+    const resp = await RNBlobUtil.fetch('POST', STT_URL, headers, parts);
+
+    const status = resp.info().status;
+    const bodyText = resp.data;
+
+    console.log('✅ STT status:', status);
+    console.log('✅ STT body head:', String(bodyText).slice(0, 300));
+
+    if (status < 200 || status >= 300) {
+      const head = String(bodyText).slice(0, 800);
+      throw new Error(`STT ${status}: ${head}`);
     }
 
     try {
-      return JSON.parse(text);
+      return JSON.parse(bodyText);
     } catch {
-      // 서버가 JSON이 아닌 텍스트를 준 경우 대비
-      return { raw: text };
+      return { raw: bodyText };
     }
   },
 };
