@@ -6,7 +6,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { setAccessToken } from './src/api/Client';
-import { authApi } from './src/api/auth'; // ✅ add this
+import { authApi } from './src/api/auth';
 
 // Screens
 import HomeScreen from './src/screens/HomeScreen';
@@ -31,6 +31,7 @@ import ChatScreen from './src/screens/ChatScreen';
 import ChatScript from './src/screens/ChatScript';
 import ChatHistoryScreen from './src/screens/ChatHistoryScreen';
 import ReviewHistoryScreen from './src/screens/ReviewHistoryScreen';
+import PaymentScreen from './src/screens/PaymentScreen'; // ✅ 이미 import 되어 있음
 
 const Stack = createNativeStackNavigator();
 
@@ -47,7 +48,6 @@ function App() {
           await setAccessToken(token);
 
           // ✅ 2) ensure this Auth0 user exists in DB
-          // (safe to call every app start)
           try {
             await authApi.registerIfNeeded();
             console.log('✅ register-if-needed OK');
@@ -143,6 +143,16 @@ function App() {
             name="Subscription"
             component={SubscriptionScreen}
             options={{ headerShown: false }}
+          />
+
+          {/* ✅ 결제 화면 추가됨 (여기에 추가했습니다!) */}
+          <Stack.Screen
+            name="Payment"
+            component={PaymentScreen}
+            options={{ 
+              title: '프리미엄 결제', // 상단 타이틀 설정
+              headerBackTitle: '취소' // 뒤로가기 버튼 텍스트
+            }}
           />
 
           {/* ===== Modals ===== */}

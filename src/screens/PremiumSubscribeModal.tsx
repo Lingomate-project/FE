@@ -1,12 +1,9 @@
-// src/screens/PremiumSubscribeModal.tsx
-
 import React from 'react';
 import {
   View,
   Text,
   StyleSheet,
   Pressable,
-  Alert,
 } from 'react-native';
 
 type Props = {
@@ -14,21 +11,14 @@ type Props = {
 };
 
 export default function PremiumSubscribeModal({ navigation }: Props) {
-  const handleSubscribe = async () => {
-    // 🔧 임시 구현: 실제 인앱결제 대신 안내만
-    Alert.alert(
-      '준비 중',
-      '현재 프리미엄 결제 기능은 준비 중입니다.\n테스트용으로만 동작합니다.',
-      [
-        {
-          text: '확인',
-          onPress: () => {
-            // 일단은 구독된 것처럼 처리하고 화면 이동만
-            navigation.navigate('Subscription');
-          },
-        },
-      ],
-    );
+  
+  // 👇 여기가 수정된 핵심 부분!
+  const handleSubscribe = () => {
+    // 1. 현재 떠있는 모달창 닫기 (뒤로가기)
+    navigation.goBack(); 
+    
+    // 2. 아까 만든 'Payment' (결제 화면)으로 이동!
+    navigation.navigate('Payment'); 
   };
 
   return (
@@ -53,7 +43,7 @@ export default function PremiumSubscribeModal({ navigation }: Props) {
 
           <Pressable
             style={styles.buttonRight}
-            onPress={handleSubscribe}
+            onPress={handleSubscribe} // 👈 수정된 함수가 연결됨
           >
             <Text style={styles.buttonText}>확인</Text>
           </Pressable>
@@ -64,15 +54,12 @@ export default function PremiumSubscribeModal({ navigation }: Props) {
 }
 
 const styles = StyleSheet.create({
-  // 화면 전체 어둡게
   overlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.4)',
     justifyContent: 'center',
     alignItems: 'center',
   },
-
-  // 가운데 카드
   modalBox: {
     width: 320,
     paddingTop: 24,
@@ -83,14 +70,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     overflow: 'hidden',
   },
-
   title: {
     fontSize: 18,
     fontWeight: '700',
     color: '#2c303c',
     marginBottom: 12,
   },
-
   message: {
     fontSize: 14,
     color: '#4b4b4b',
@@ -98,14 +83,12 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     marginBottom: 16,
   },
-
   buttonRow: {
     flexDirection: 'row',
     width: '100%',
     borderTopWidth: 1,
     borderColor: '#D5D8E0',
   },
-
   buttonLeft: {
     flex: 1,
     paddingVertical: 14,
@@ -118,7 +101,6 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     alignItems: 'center',
   },
-
   buttonText: {
     fontSize: 15,
     fontWeight: '500',
