@@ -1,130 +1,111 @@
 // src/api/ai.ts
-import { Platform } from 'react-native';
 import client, { BASE_URL } from './Client';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Platform } from 'react-native';
+import RNFS from 'react-native-fs';
+
+// STT만 로컬 터널을 쓰고 싶을 때 설정. 비우면 BASE_URL 사용.
+// 예) 테스트 시 'https://slick-birds-dress.loca.lt'
+// const STT_BASE_URL = 'https://slick-birds-dress.loca.lt';
 
 const ACCESS_TOKEN_KEY = 'accessToken';
-
-export type UploadFile = {
-  uri: string;
-  name: string;
-  type: string;
-};
-
-// ✅ STT는 일단 하드코딩 유지 (네가 원한 방식)
-const STT_URL =
-  'http://lingomate-backend.ap-northeast-2.elasticbeanstalk.com/api/ai/stt';
-
 export const aiApi = {
-  // POST /api/ai/chat
-  chat: (text: string) => client.post('/api/ai/chat', { text }),
-
-  // POST /api/ai/feedback
-  feedback: (text: string) => client.post('/api/ai/feedback', { text }),
-
-  // POST /api/ai/tts
-  tts: (
-    text: string,
-    accent: 'us' | 'uk' = 'us',
-    gender: 'female' | 'male' = 'female',
-  ) => client.post('/api/ai/tts', { text, accent, gender }),
-
   /**
-   * ✅ STT PROBE (네트워크 레벨 확인용)
-   * - status가 찍히면 "폰/망에서 서버까지는 닿음"
-   * - 400/415/401이어도 네트워크는 OK일 수 있음
+   * ✅ STT — multipart/form-data, field name "audio"
+   *    - WAV/MP3: 서버가 ffmpeg로 변환
+   *    - .pcm: 변환 스킵
+   * fetch 사용 (RN axios 업로드 이슈 우회)
    */
-  sttProbe: async () => {
-    const url = STT_URL;
-
-    console.log('🧪 STT PROBE url:', url);
-    console.log('🧪 BASE_URL json:', JSON.stringify(BASE_URL));
-
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Accept: 'application/json',
-      },
-      body: JSON.stringify({ ping: true }),
-    });
-
-    const text = await res.text();
-    console.log('🧪 STT PROBE status:', res.status);
-    console.log('🧪 STT PROBE body head:', text.slice(0, 200));
-    return { status: res.status, body: text };
-  },
-
-  /**
-   * ✅ STT (fetch 멀티파트)
-   * - Content-Type 직접 넣지 말기(boundary 자동)
-   * - field명은 'file'로 고정(대부분 multer.single('file'))
-   */
-  stt: async (file: any, sampleRate = 16000) => {
+  stt: async (wavFilePath: string) => {
     const token = await AsyncStorage.getItem(ACCESS_TOKEN_KEY);
 
-    if (!file?.uri) {
-      console.error('❌ STT file.uri missing:', file);
-      return;
-    }
+    // Android는 file:// 스킴 필요
+    const uri =
+      Platform.OS === 'android'
+        ? wavFilePath.startsWith('file://')
+          ? wavFilePath
+          : `file://${wavFilePath}`
+        : wavFilePath;
 
-    const uri = String(file.uri).trim();
+    const targetBase = BASE_URL;
+    //const targetBase = STT_BASE_URL;
 
-    const fixedFile: UploadFile = {
-      uri: (() => {
-        const raw = String(uri ?? '').trim();
-        if (!raw) return '';
-        return raw.startsWith('file://') ? raw : `file://${raw}`;
-      })(),
-      name: String(file?.name ?? 'stt_record.wav').trim(),
-      type: String(file?.type ?? 'audio/wav').trim(),
-    };
-
-
-    console.log('🎙️ STT file keys (real):', Object.keys(fixedFile));
-    console.log('🎙️ STT fixedFile(before):', fixedFile);
-
-    if (!fixedFile.uri) {
-      throw new Error(`STT invalid uri: ${fixedFile.uri}`);
-    }
-
-    // ✅ Android는 file:// 없으면 붙여줌 (ChatScreen에서 붙여도 안전장치로 한 번 더)
-    if (Platform.OS === 'android' && !fixedFile.uri.startsWith('file://')) {
-      fixedFile.uri = `file://${fixedFile.uri}`;
-    }
-
-    console.log('🎙️ STT fixedFile(after):', fixedFile);
-
+    // 기본: 멀티파트 업로드 (EB)
     const form = new FormData();
-    // ✅ 핵심: field name을 file로
-    form.append('audio', fixedFile as any);
-    form.append('sampleRate', String(sampleRate));
+    form.append('audio', {
+      uri,
+      name: 'audio.wav',
+      type: 'audio/wav',
+    } as any);
 
-    console.log('🔥 STT fetch url:', STT_URL);
-
-    const res = await fetch(STT_URL, {
-      method: 'POST',
-      headers: {
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        Accept: 'application/json',
-        // ⚠️ Content-Type 절대 넣지 마!
-      },
-      body: form,
+    console.log('[STT] fetch upload', {
+      uri,
+      hasToken: !!token,
+      baseUrl: targetBase,
     });
 
-    const text = await res.text();
-    console.log('✅ STT fetch status:', res.status);
-    console.log('✅ STT body head:', text.slice(0, 200));
-
-    if (!res.ok) {
-      throw new Error(`STT ${res.status}: ${text}`);
-    }
-
     try {
-      return JSON.parse(text);
-    } catch {
-      // 서버가 JSON이 아닌 텍스트를 준 경우 대비
-      return { raw: text };
+      const res = await fetch(`${targetBase}/api/ai/stt`, {
+        method: 'POST',
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          Accept: 'application/json',
+          // Content-Type 지정 금지 (boundary 자동)
+        },
+        body: form as any,
+      });
+
+      const text = await res.text();
+      if (!res.ok) {
+        throw new Error(`STT ${res.status}: ${text || 'Network/Server error'}`);
+      }
+      try {
+        const json = JSON.parse(text);
+        return json?.data ?? json;
+      } catch {
+        return { raw: text };
+      }
+    } catch (e: any) {
+      console.log('[STT] multipart failed, fallback to base64', e?.message || e);
+
+      // Fallback: base64 JSON 전송
+      const cleanPath = uri.replace(/^file:\/\//, '');
+      const audioBase64 = await RNFS.readFile(cleanPath, 'base64');
+      console.log('[STT] base64 upload fallback', {
+        path: cleanPath,
+        baseUrl: targetBase,
+        hasToken: !!token,
+        base64Len: audioBase64.length,
+      });
+
+      const res2 = await fetch(`${targetBase}/api/ai/stt`, {
+        method: 'POST',
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          audioBase64,
+          fileName: 'audio.wav',
+        }),
+      });
+
+      const text2 = await res2.text();
+      if (!res2.ok) {
+        throw new Error(`STT fallback ${res2.status}: ${text2 || 'Network/Server error'}`);
+      }
+      try {
+        const json2 = JSON.parse(text2);
+        return json2?.data ?? json2;
+      } catch {
+        return { raw: text2 };
+      }
     }
   },
+
+  chat: (text: string) => client.post('/api/ai/chat', { text }),
+  feedback: (text: string) => client.post('/api/ai/feedback', { text }),
+  tts: (text: string, accent: string = 'us', gender: string = 'female') =>
+    client.post('/api/ai/tts', { text, accent, gender }),
 };

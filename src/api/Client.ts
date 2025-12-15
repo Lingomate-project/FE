@@ -11,9 +11,7 @@ const ACCESS_TOKEN_KEY = 'accessToken';
 const client = axios.create({
   baseURL: BASE_URL,
   timeout: 15000,
-  headers: {
-    'Content-Type': 'application/json',
-  },
+  maxRedirects: 0, // HTTP→HTTPS 리다이렉트 시도 방지
 });
 
 let inMemoryToken: string | null = null;

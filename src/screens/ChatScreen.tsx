@@ -176,7 +176,6 @@ export default function ChatScreen() {
     } catch {}
   };
 
-  const audioInitedRef = useRef(false);
 
   const startRecording = async () => {
     const ok = await requestMicPermission();
@@ -211,52 +210,63 @@ export default function ChatScreen() {
   };
 
   const stopRecordingAndSTT = async () => {
-  try {
-    setIsRecording(false);
-    setSttLoading(true);
+    try {
+      setIsRecording(false);
+      setSttLoading(true);
+  
+      // 1️⃣ 녹음 종료 → wav 경로
+      const rawPath = String(await AudioRecord.stop());
+      if (!rawPath) {
+        Alert.alert('STT', '녹음 파일을 만들지 못했어요.');
+        return;
+      }
+  
+      const path =
+        Platform.OS === 'android'
+          ? rawPath.replace(/^file:\/\//, '')
+          : rawPath;
 
-    // 1) 녹음 종료 → 실제 wav 파일 경로
-    const rawPath = String(await AudioRecord.stop());
-    if (!rawPath) {
-      Alert.alert('STT', '녹음 파일을 만들지 못했어요.');
-      return;
+      console.log('🎙️ STT wav path:', path);
+      // 파일 존재 여부/크기 확인 (업로드 실패 원인 추적)
+      const RNFS = require('react-native-fs');
+      const exists = await RNFS.exists(path);
+      if (!exists) {
+        Alert.alert('STT', '녹음 파일을 찾지 못했어요.');
+        return;
+      }
+      try {
+        const stat = await RNFS.stat(path);
+        console.log('🎙️ STT file stat:', {
+          size: stat.size,
+          isFile: stat.isFile(),
+          mtime: stat.mtime,
+        });
+      } catch (e: any) {
+        console.log('⚠️ STT stat error:', e?.message || e);
+      }
+  
+      // 2️⃣ STT 호출 (multipart 업로드)
+      const result = await aiApi.stt(path);
+  
+      console.log('✅ STT result:', result);
+  
+      // 3️⃣ 인식된 텍스트 반영
+      if (result?.text) {
+        setInput(result.text);
+      }
+    } catch (e: any) {
+      console.log('❌ STT failed:', e?.message, e?.response?.data);
+      console.log('❌ STT debug:', {
+        name: e?.name,
+        status: e?.response?.status,
+        data: e?.response?.data,
+        stack: e?.stack,
+      });
+      Alert.alert('STT', '음성 인식에 실패했어요.');
+    } finally {
+      setSttLoading(false);
     }
-
-    // 2) Android는 file:// 필요
-    const uri =
-      Platform.OS === 'android'
-        ? rawPath.startsWith('file://')
-          ? rawPath
-          : `file://${rawPath}`
-        : rawPath;
-    
-    const file = {
-      uri: uri,
-      name: rawPath.split('/').pop() ?? 'stt_record.wav',
-      type: 'audio/wav',
-    };
-
-    console.log('🎙️ STT upload (FINAL):', file);
-
-    const result = await aiApi.stt({
-      uri: file.uri,   // 🔥 새 객체로 한 번 더 정화
-      name: file.name,
-      type: file.type,
-    });
-
-    console.log('✅ STT result:', result);
-
-    // TODO: res.data에서 텍스트 꺼내서 input이나 messages에 반영
-    // 예: setInput(res.data?.text ?? '')
-
-  } catch (e: any) {
-    console.log('❌ STT failed:', e?.message ?? e);
-    console.log('❌ STT response:', e?.response?.status, e?.response?.data);
-    Alert.alert('STT', '네트워크 오류로 STT에 실패했어요.');
-  } finally {
-    setSttLoading(false);
-  }
-};
+  };
 
 
   // ✅ 토글: 한 번 누르면 시작 / 다시 누르면 종료+STT
